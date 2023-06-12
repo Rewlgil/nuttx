@@ -64,6 +64,41 @@
 #define GPIO_SW2    (PIN_PTC12 | PIN_INT_BOTH)
 #define GPIO_SW3    (PIN_PTC13 | PIN_INT_BOTH)
 
+/* VNQ9080AJ High-Side Driver
+ *
+ * IN0          PTB5    control input pin
+ * IN1          PTB4
+ * IN2          PTB3
+ * IN3          PTB2
+ * 
+ * FaultRST     PTA3    auto restart mode active low
+ *  
+ * SEn          PTB10   enable CS diagnostic
+ * SEL0         PTD13   CS multiplexer
+ * SEL1         PTD14
+ * CS           PTB0    input pin
+ *  
+ * VBAT_ADC     PTC0    input pin
+ *  
+ * In_PullUP    PTB11   output pullup (unused)
+ */
+
+#define gpio0       (PIN_PTB5  | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define gpio1       (PIN_PTB4  | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define gpio2       (PIN_PTB3  | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define gpio3       (PIN_PTB2  | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+
+#define gpio4       (PIN_PTA3  | GPIO_OUTPUT | GPIO_OUTPUT_ONE)
+
+// #define gpio5       (PIN_PTB10 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+// #define gpio6       (PIN_PTD13 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+// #define gpio7       (PIN_PTD14 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+// #define gpio8       (PIN_PTB0  | GPIO_INPUT)
+
+// #define gpio9       (PIN_PTC0  | PIN_ANALOG)
+
+// #define gpio10      (PIN_PTB11 | GPIO_HIGHDRIVE | GPIO_OUTPUT_ZERO)
+
 /****************************************************************************
  * Public Data
  ****************************************************************************/

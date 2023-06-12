@@ -72,10 +72,21 @@ static int gpio_setpintype(struct gpio_dev_s *dev,
 
 /* Set of GPIO pins */
 
-#define NUM_OF_GPIO 5
+#define NUM_OF_GPIO 10
 
 static uint32_t g_gpiopins[] =
 {
+  gpio0,
+  gpio1,
+  gpio2,
+  gpio3,
+  gpio4,
+  // gpio5,
+  // gpio6,
+  // gpio7,
+  // gpio8,
+  // gpio9,
+  // gpio10,
   GPIO_SW2,
   GPIO_SW3,
   GPIO_LED_R, 
@@ -122,7 +133,8 @@ static const struct gpio_operations_s gpint_ops =
  * Private Functions
  ****************************************************************************/
 
-static int gpio_read(struct gpio_dev_s *dev, bool *value)
+// static int gpio_read(struct gpio_dev_s *dev, bool *value)
+int gpio_read(struct gpio_dev_s *dev, bool *value)
 {
   struct s32k1xx_gpio_dev_s *s32k1xx_gpio = (struct s32k1xx_gpio_dev_s *)dev;
 
@@ -134,7 +146,8 @@ static int gpio_read(struct gpio_dev_s *dev, bool *value)
   return OK;
 }
 
-static int gpio_write(struct gpio_dev_s *dev, bool value)
+// static int gpio_write(struct gpio_dev_s *dev, bool value)
+int gpio_write(struct gpio_dev_s *dev, bool value)
 {
   struct s32k1xx_gpio_dev_s *s32k1xx_gpio = (struct s32k1xx_gpio_dev_s *)dev;
 
