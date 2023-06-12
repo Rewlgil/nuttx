@@ -95,6 +95,16 @@ extern const struct peripheral_clock_config_s g_peripheral_clockconfig0[];
 int s32k1xx_bringup(void);
 
 /****************************************************************************
+ * Name: s32k1xx_gpio_initialize
+ *
+ * Description:
+ *   Initialize GPIO drivers for use with /apps/examples/gpio
+ *
+ ****************************************************************************/
+
+int s32k1xx_gpio_initialize(void);
+
+/****************************************************************************
  * Name: s32k1xx_i2cdev_initialize
  *
  * Description:

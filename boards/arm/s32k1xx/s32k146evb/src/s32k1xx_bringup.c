@@ -92,6 +92,16 @@ int s32k1xx_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_DEV_GPIO
+  /* Initialize and register the GPIO driver */
+
+  ret = s32k1xx_gpio_initialize();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: Failed to initialize GPIO driver: %d\n", ret);
+    }
+#endif
+
 #ifdef CONFIG_FS_PROCFS
   /* Mount the procfs file system */
 

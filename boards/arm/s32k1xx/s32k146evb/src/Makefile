@@ -33,6 +33,10 @@ else
 CSRCS += s32k1xx_userleds.c
 endif
 
+ifeq ($(CONFIG_DEV_GPIO),y)
+CSRCS += s32k1xx_gpio.c
+endif
+
 ifeq ($(CONFIG_BOARDCTL),y)
 CSRCS += s32k1xx_appinit.c
 endif
