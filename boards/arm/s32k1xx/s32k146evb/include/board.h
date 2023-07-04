@@ -124,6 +124,13 @@
 #define PIN_LPSPI1_MOSI   PIN_LPSPI1_SOUT_2  /* PTB16 */
 #define PIN_LPSPI1_PCS    PIN_LPSPI1_PCS3    /* PTB17 */
 
+/* UJA1169TK/F SBC SPI  (LPSPI2) */
+
+#define PIN_LPSPI2_SCK    PIN_LPSPI2_SCK_3   /* PTB29 */
+#define PIN_LPSPI2_MISO   PIN_LPSPI2_SOUT_3  /* PTB27 */
+#define PIN_LPSPI2_MOSI   PIN_LPSPI2_SIN_3   /* PTB28 */
+#define PIN_LPSPI2_PCS    PIN_LPSPI2_PCS0_4  /* PTB25 */
+
 /* CAN selections ***********************************************************/
 
 /* UJA1169TK/F SBC CAN  (CAN0) */

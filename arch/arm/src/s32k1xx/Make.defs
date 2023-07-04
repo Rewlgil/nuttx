@@ -56,6 +56,7 @@ endif
 
 ifeq ($(CONFIG_S32K1XX_LPSPI),y)
 CHIP_CSRCS += s32k1xx_lpspi.c
+CHIP_CSRCS += s32k1xx_lpspi_slave.c
 endif
 
 ifeq ($(CONFIG_S32K1XX_ENET),y)

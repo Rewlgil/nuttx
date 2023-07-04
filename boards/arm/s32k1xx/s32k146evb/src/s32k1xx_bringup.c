@@ -143,16 +143,63 @@ int s32k1xx_bringup(void)
     }
 #endif
 
-#ifdef CONFIG_S32K1XX_LPSPI
-  /* Initialize SPI driver */
-
-  ret = s32k1xx_spidev_initialize();
+ret = s32k1xx_spidev_initialize();
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: s32k1xx_spidev_initialize() failed: %d\n",
              ret);
     }
-#endif
+
+ret = s32k1xx_spi_slave_dev_initialize(2);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: s32k1xx_spislavedev_initialize(2) failed: %d\n",
+             ret);
+    }
+
+// #ifdef CONFIG_S32K1XX_LPSPI
+//   /* Initialize SPI driver */
+
+//   ret = s32k1xx_spidev_initialize();
+//   if (ret < 0)
+//     {
+//       syslog(LOG_ERR, "ERROR: s32k1xx_spidev_initialize() failed: %d\n",
+//              ret);
+//     }
+// #endif
+
+// #if defined(CONFIG_SLAVE_DRIVER) && defined(CONFIG_S32K1XX_LPSPI0)
+//   /* Initialize SPI0 slave driver */
+
+//   ret = s32k1xx_spislavedev_initialize(0);
+//   if (ret < 0)
+//     {
+//       syslog(LOG_ERR, "ERROR: s32k1xx_spislavedev_initialize(0) failed: %d\n",
+//              ret);
+//     }
+// #endif
+
+// #if defined(CONFIG_SLAVE_DRIVER) && defined(CONFIG_S32K1XX_LPSPI1)
+//   /* Initialize SPI1 slave driver */
+
+//   ret = s32k1xx_spislavedev_initialize(1);
+//   if (ret < 0)
+//     {
+//       syslog(LOG_ERR, "ERROR: s32k1xx_spislavedev_initialize(1) failed: %d\n",
+//              ret);
+//     }
+// #endif
+
+// #if defined(CONFIG_SLAVE_DRIVER) && defined(CONFIG_S32K1XX_LPSPI2)
+//   /* Initialize SPI2 slave driver */
+
+//   ret = s32k1xx_spislavedev_initialize(2);
+//   if (ret < 0)
+//     {
+//       syslog(LOG_ERR, "ERROR: s32k1xx_spislavedev_initialize(2) failed: %d\n",
+//              ret);
+//     }
+// #endif
 
   return ret;
 }

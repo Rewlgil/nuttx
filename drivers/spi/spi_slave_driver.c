@@ -284,7 +284,7 @@ static ssize_t spi_slave_read(FAR struct file *filep, FAR char *buffer,
   FAR struct inode *inode;
   FAR struct spi_slave_driver_s *priv;
   size_t read_bytes;
-  size_t remaining_words;
+  // size_t remaining_words;
 
   spiinfo("filep=%p buffer=%p buflen=%zu\n", filep, buffer, buflen);
 
@@ -300,15 +300,15 @@ static ssize_t spi_slave_read(FAR struct file *filep, FAR char *buffer,
     }
 
   priv->rx_length = MIN(buflen, sizeof(priv->rx_buffer));
-  remaining_words = SPIS_CTRLR_QPOLL(priv->ctrlr);
-  if (remaining_words == 0)
-    {
-      spiinfo("All words retrieved!\n");
-    }
-  else
-    {
-      spiinfo("%zu words left in the buffer\n", remaining_words);
-    }
+  // remaining_words = SPIS_CTRLR_QPOLL(priv->ctrlr);
+  // if (remaining_words == 0)
+  //   {
+  //     spiinfo("All words retrieved!\n");
+  //   }
+  // else
+  //   {
+  //     spiinfo("%zu words left in the buffer\n", remaining_words);
+  //   }
 
   read_bytes = MIN(buflen, priv->rx_length);
 

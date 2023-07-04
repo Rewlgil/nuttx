@@ -117,24 +117,24 @@ int weak_function s32k1xx_spidev_initialize(void)
 
   /* Configure LPSPI2 peripheral chip select */
 
-  s32k1xx_pinconfig(PIN_LPSPI2_PCS);
+  // s32k1xx_pinconfig(PIN_LPSPI2_PCS);
 
 #  ifdef CONFIG_SPI_DRIVER
   /* Initialize the SPI driver for LPSPI2 */
 
-  struct spi_dev_s *g_lpspi2 = s32k1xx_lpspibus_initialize(2);
-  if (g_lpspi2 == NULL)
-    {
-      spierr("ERROR: FAILED to initialize LPSPI2\n");
-      return -ENODEV;
-    }
+  // struct spi_dev_s *g_lpspi2 = s32k1xx_lpspibus_initialize(2);
+  // if (g_lpspi2 == NULL)
+  //   {
+  //     spierr("ERROR: FAILED to initialize LPSPI2\n");
+  //     return -ENODEV;
+  //   }
 
-  ret = spi_register(g_lpspi2, 2);
-  if (ret < 0)
-    {
-      spierr("ERROR: FAILED to register LPSPI2 driver\n");
-      return ret;
-    }
+  // ret = spi_register(g_lpspi2, 2);
+  // if (ret < 0)
+  //   {
+  //     spierr("ERROR: FAILED to register LPSPI2 driver\n");
+  //     return ret;
+  //   }
 #  endif /* CONFIG_SPI_DRIVER */
 #endif /* CONFIG_S32K1XX_LPSPI2 */
 
@@ -212,7 +212,7 @@ void s32k1xx_lpspi2select(struct spi_dev_s *dev, uint32_t devid,
   spiinfo("devid: %" PRId32 ", CS: %s\n", devid,
           selected ? "assert" : "de-assert");
 
-  s32k1xx_gpiowrite(PIN_LPSPI2_PCS, !selected);
+  // s32k1xx_gpiowrite(PIN_LPSPI2_PCS, !selected);
 }
 
 uint8_t s32k1xx_lpspi2status(struct spi_dev_s *dev, uint32_t devid)

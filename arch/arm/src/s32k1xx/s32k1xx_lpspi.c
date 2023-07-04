@@ -350,62 +350,62 @@ static struct s32k1xx_lpspidev_s g_lpspi1dev =
 #endif
 
 #ifdef CONFIG_S32K1XX_LPSPI2
-static const struct spi_ops_s g_spi2ops =
-{
-  .lock         = s32k1xx_lpspi_lock,
-#ifdef CONFIG_S32K1XX_LPSPI_HWPCS
-  .select       = s32k1xx_lpspi_select,
-#else
-  .select       = s32k1xx_lpspi2select,
-#endif
-  .setfrequency = s32k1xx_lpspi_setfrequency,
-  .setmode      = s32k1xx_lpspi_setmode,
-  .setbits      = s32k1xx_lpspi_setbits,
-#ifdef CONFIG_SPI_HWFEATURES
-  .hwfeatures   = s32k1xx_lpspi_hwfeatures,
-#endif
-  .status       = s32k1xx_lpspi2status,
-#ifdef CONFIG_SPI_CMDDATA
-  .cmddata      = s32k1xx_lpspi2cmddata,
-#endif
-  .send         = s32k1xx_lpspi_send,
-#ifdef CONFIG_SPI_EXCHANGE
-  .exchange     = s32k1xx_lpspi_exchange,
-#else
-  .sndblock     = s32k1xx_lpspi_sndblock,
-  .recvblock    = s32k1xx_lpspi_recvblock,
-#endif
-#ifdef CONFIG_SPI_CALLBACK
-  .registercallback = s32k1xx_lpspi2register,  /* Provided externally */
-#else
-  .registercallback = 0,                       /* Not implemented */
-#endif
-};
+// static const struct spi_ops_s g_spi2ops =
+// {
+//   .lock         = s32k1xx_lpspi_lock,
+// #ifdef CONFIG_S32K1XX_LPSPI_HWPCS
+//   .select       = s32k1xx_lpspi_select,
+// #else
+//   .select       = s32k1xx_lpspi2select,
+// #endif
+//   .setfrequency = s32k1xx_lpspi_setfrequency,
+//   .setmode      = s32k1xx_lpspi_setmode,
+//   .setbits      = s32k1xx_lpspi_setbits,
+// #ifdef CONFIG_SPI_HWFEATURES
+//   .hwfeatures   = s32k1xx_lpspi_hwfeatures,
+// #endif
+//   .status       = s32k1xx_lpspi2status,
+// #ifdef CONFIG_SPI_CMDDATA
+//   .cmddata      = s32k1xx_lpspi2cmddata,
+// #endif
+//   .send         = s32k1xx_lpspi_send,
+// #ifdef CONFIG_SPI_EXCHANGE
+//   .exchange     = s32k1xx_lpspi_exchange,
+// #else
+//   .sndblock     = s32k1xx_lpspi_sndblock,
+//   .recvblock    = s32k1xx_lpspi_recvblock,
+// #endif
+// #ifdef CONFIG_SPI_CALLBACK
+//   .registercallback = s32k1xx_lpspi2register,  /* Provided externally */
+// #else
+//   .registercallback = 0,                       /* Not implemented */
+// #endif
+// };
 
-static struct s32k1xx_lpspidev_s g_lpspi2dev =
-{
-  .spidev       =
-  {
-    .ops        = &g_spi2ops,
-  },
-  .spibase      = S32K1XX_LPSPI2_BASE,
-#ifdef CONFIG_S32K1XX_LPSPI_INTERRUPTS
-  .spiirq       = S32K1XX_IRQ_LPSPI2,
-#endif
-  .lock         = NXMUTEX_INITIALIZER,
-#ifdef CONFIG_S32K1XX_LPSPI2_DMA
-  .rxch         = S32K1XX_DMACHAN_LPSPI2_RX,
-  .txch         = S32K1XX_DMACHAN_LPSPI3_TX,
-#endif
-};
-#endif
+// static struct s32k1xx_lpspidev_s g_lpspi2dev =
+// {
+//   .spidev       =
+//   {
+//     .ops        = &g_spi2ops,
+//   },
+//   .spibase      = S32K1XX_LPSPI2_BASE,
+// #ifdef CONFIG_S32K1XX_LPSPI_INTERRUPTS
+//   .spiirq       = S32K1XX_IRQ_LPSPI2,
+// #endif
+//   .lock         = NXMUTEX_INITIALIZER,
+// #ifdef CONFIG_S32K1XX_LPSPI2_DMA
+//   .rxch         = S32K1XX_DMACHAN_LPSPI2_RX,
+//   .txch         = S32K1XX_DMACHAN_LPSPI3_TX,
+// #endif
+// };
+// #endif
 
-#ifdef CONFIG_PM
-static  struct pm_callback_s g_spi1_pmcb =
-{
-  .notify       = up_pm_notify,
-  .prepare      = up_pm_prepare,
-};
+// #ifdef CONFIG_PM
+// static  struct pm_callback_s g_spi1_pmcb =
+// {
+//   .notify       = up_pm_notify,
+//   .prepare      = up_pm_prepare,
+// };
 #endif
 
 /****************************************************************************
@@ -1864,6 +1864,10 @@ static void s32k1xx_lpspi_bus_initialize(struct s32k1xx_lpspidev_s *priv)
 
   /* TODO: Not needed for now */
 
+  /* Enable BYSW */
+
+  // s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, 0, LPSPI_TCR_BYSW);
+
   /* Set Configuration Register 1 related setting. */
 
   reg = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET);
@@ -1885,7 +1889,7 @@ static void s32k1xx_lpspi_bus_initialize(struct s32k1xx_lpspidev_s *priv)
 
   s32k1xx_lpspi_setbits((struct spi_dev_s *)priv, 8);
 
-  s32k1xx_lpspi_setmode((struct spi_dev_s *)priv, SPIDEV_MODE0);
+  s32k1xx_lpspi_setmode((struct spi_dev_s *)priv, SPIDEV_MODE1);
 
   /* Enable LPSPI */
 
@@ -2523,34 +2527,34 @@ struct spi_dev_s *s32k1xx_lpspibus_initialize(int bus)
     }
   else
 #endif
-#ifdef CONFIG_S32K1XX_LPSPI2
-  if (bus == 2)
-    {
-      /* Select SPI2 */
+// #ifdef CONFIG_S32K1XX_LPSPI2
+//   if (bus == 2)
+//     {
+//       /* Select SPI2 */
 
-      priv = &g_lpspi2dev;
+//       priv = &g_lpspi2dev;
 
-      /* Only configure if the bus is not already configured */
+//       /* Only configure if the bus is not already configured */
 
-      if ((s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CR_OFFSET) &
-          LPSPI_CR_MEN) == 0)
-        {
-          /* Configure SPI2 pins: SCK, MISO, and MOSI */
+//       if ((s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CR_OFFSET) &
+//           LPSPI_CR_MEN) == 0)
+//         {
+//           /* Configure SPI2 pins: SCK, MISO, and MOSI */
 
-          s32k1xx_pinconfig(PIN_LPSPI2_SCK);
-          s32k1xx_pinconfig(PIN_LPSPI2_MISO);
-          s32k1xx_pinconfig(PIN_LPSPI2_MOSI);
+//           s32k1xx_pinconfig(PIN_LPSPI2_SCK);
+//           s32k1xx_pinconfig(PIN_LPSPI2_MISO);
+//           s32k1xx_pinconfig(PIN_LPSPI2_MOSI);
 
-          /* Set up default configuration: Master, 8-bit, etc. */
+//           /* Set up default configuration: Master, 8-bit, etc. */
 
-          s32k1xx_lpspi_bus_initialize(priv);
-        }
-    }
-  else
-#endif
-    {
-      spierr("ERROR: Unsupported SPI bus: %d\n", bus);
-    }
+//           s32k1xx_lpspi_bus_initialize(priv);
+//         }
+//     }
+//   else
+// #endif
+//     {
+//       spierr("ERROR: Unsupported SPI bus: %d\n", bus);
+//     }
 
 #ifdef CONFIG_S32K1XX_LPSPI_DMA
   /* Initialize the SPI semaphores that is used to wait for DMA completion.

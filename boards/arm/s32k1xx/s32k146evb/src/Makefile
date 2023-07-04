@@ -47,6 +47,7 @@ endif
 
 ifeq ($(CONFIG_S32K1XX_LPSPI),y)
 CSRCS += s32k1xx_spi.c
+CSRCS += s32k1xx_spislavedev.c
 endif
 
 include $(TOPDIR)/boards/Board.mk
