@@ -69,12 +69,12 @@ struct spi_slave_driver_s
   /* Receive buffer */
 
   uint8_t rx_buffer[CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE];
-  uint32_t rx_length;         /* Location of next RX value */
+  uint8_t rx_length;         /* Location of next RX value */
 
   /* Transmit buffer */
 
   uint8_t tx_buffer[CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE];
-  uint32_t tx_length;         /* Location of next TX value */
+  uint8_t tx_length;         /* Location of next TX value */
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
   mutex_t lock;               /* Mutual exclusion */
   int16_t crefs;              /* Number of open references */
