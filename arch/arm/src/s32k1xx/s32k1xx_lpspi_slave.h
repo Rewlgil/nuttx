@@ -113,6 +113,8 @@ struct s32k1xx_lpspidev_s
 
   uint32_t outq[CONFIG_SPI_SLAVE_QSIZE];
 
+  uint8_t space_ramain;         /* Remaining FIFO space in bytes */
+
   /* Debug stuff */
 
 #ifdef CONFIG_S32K1XX_SPI_REGDEBUG

@@ -90,13 +90,6 @@
 
 /* Helpers */
 
-#ifdef CONFIG_S32K1XX_SPI_REGDEBUG
-static bool     s32k1xx_lpspi_checkreg(struct s32k1xx_lpspidev_s *priv, bool wr,
-                                       uint32_t value, uint32_t address);
-#else
-#  define       s32k1xx_lpspi_checkreg(priv,wr,value,address) (false)
-#endif
-
 static 
 inline uint32_t s32k1xx_lpspi_getreg32(struct s32k1xx_lpspidev_s *priv,
                                 uint8_t offset);
@@ -170,60 +163,6 @@ static struct s32k1xx_lpspidev_s g_spi2_ctrlr =
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
-
-/****************************************************************************
- * Name: s32k1xx_lpspi_checkreg
- *
- * Description:
- *   Check if the current register access is a duplicate of the preceding.
- *
- * Input Parameters:
- *   value   - The value to be written
- *   address - The address of the register to write to
- *
- * Returned Value:
- *   true:  This is the first register access of this type.
- *   flase: This is the same as the preceding register access.
- *
- ****************************************************************************/
-
-#ifdef CONFIG_S32K1XX_SPI_REGDEBUG
-static bool s32k1xx_lpspi_checkreg(struct s32k1xx_lpspidev_s *priv, bool wr, 
-                                   uint32_t value, uint32_t address)
-{
-  if (wr      == priv->wrlast &&     /* Same kind of access? */
-      value   == priv->valuelast &&  /* Same value? */
-      address == priv->addresslast)  /* Same address? */
-    {
-      /* Yes, then just keep a count of the number of times we did this. */
-
-      priv->ntimes++;
-      return false;
-    }
-  else
-    {
-      /* Did we do the previous operation more than once? */
-
-      if (priv->ntimes > 0)
-        {
-          /* Yes... show how many times we did it */
-
-          spiinfo("...[Repeats %d times]...\n", priv->ntimes);
-        }
-
-      /* Save information about the new access */
-
-      priv->wrlast      = wr;
-      priv->valuelast   = value;
-      priv->addresslast = address;
-      priv->ntimes      = 0;
-    }
-
-  /* Return true if this is the first time that we have done this operation */
-
-  return true;
-}
-#endif
 
 /****************************************************************************
  * Name: s32k1xx_lpspi_getreg32
@@ -314,12 +253,16 @@ static void s32k1xx_lpspi_dumpregs(struct s32k1xx_lpspidev_s *priv, const char *
 {
   spiinfo("%s:\n", msg);
   spiinfo("  CR:%08x   SR:%08x  IER:%08x\n",
-          getreg32(priv->base + S32K1XX_LPSPI_CR_OFFSET),
-          getreg32(priv->base + S32K1XX_LPSPI_SR_OFFSET),
-          getreg32(priv->base + S32K1XX_LPSPI_IER_OFFSET));
-  spiinfo("  CFGR0:%08x CFGR1:%08x\n",
-          getreg32(priv->base + S32K1XX_LPSPI_CFGR0_OFFSET),
-          getreg32(priv->base + S32K1XX_LPSPI_CFGR1_OFFSET));
+          s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CR_OFFSET),
+          s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_SR_OFFSET),
+          s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_IER_OFFSET));
+  spiinfo("  CFGR1:%08x   FCR:%08x\n",
+          s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET),
+          s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_FCR_OFFSET));
+
+  spiinfo("  TCR:%08x     RSR:%08x\n",
+          s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_TCR_OFFSET),
+          s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_RSR_OFFSET));
 }
 #endif
 
@@ -561,6 +504,8 @@ static uint32_t s32k1xx_lpspi_dequeue(struct s32k1xx_lpspidev_s *priv)
           s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
                                     LPSPI_IER_TEIE | LPSPI_IER_TDIE, 0);
         }
+
+      priv->space_ramain += 1;
     }
   else
     {
@@ -607,10 +552,10 @@ static void s32k1xx_lpspi_setmode(struct s32k1xx_lpspidev_s *priv,
     {
       /* Disable LPSPI if it is enabled */
 
-      men = getreg32(S32K1XX_LPSPI2_CR) & LPSPI_CR_MEN;
+      men = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CR_OFFSET) & LPSPI_CR_MEN;
       if (men)
         {
-          modifyreg32(S32K1XX_LPSPI2_CR, LPSPI_CR_MEN, 0);
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_MEN, 0);
         }
 
       switch (mode)
@@ -641,7 +586,7 @@ static void s32k1xx_lpspi_setmode(struct s32k1xx_lpspidev_s *priv,
           return;
         }
 
-      modifyreg32(S32K1XX_LPSPI2_TCR, clrbits, setbits);
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, clrbits, setbits);
 
       /* Save the mode so that subsequent re-configurations will be faster */
 
@@ -651,7 +596,7 @@ static void s32k1xx_lpspi_setmode(struct s32k1xx_lpspidev_s *priv,
 
       if (men)
         {
-          modifyreg32(S32K1XX_LPSPI2_CR, 0, LPSPI_CR_MEN);
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_MEN);
         }
 
     }
@@ -691,17 +636,14 @@ static void     s32k1xx_lpspi_setbits(struct s32k1xx_lpspidev_s *priv,
 
       /* Disable LPSPI if it is enabled */
 
-      men = getreg32(S32K1XX_LPSPI2_CR) & LPSPI_CR_MEN;
+      men = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CR_OFFSET) & LPSPI_CR_MEN;
       if (men)
         {
-          modifyreg32(S32K1XX_LPSPI2_CR, LPSPI_CR_MEN, 0);
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_MEN, 0);
         }
 
-      regval = getreg32(S32K1XX_LPSPI2_TCR);
-      regval &= ~LPSPI_TCR_FRAMESZ_MASK;
-      regval |= LPSPI_TCR_FRAMESZ(nbits - 1);
-
-      putreg32(regval, S32K1XX_LPSPI2_TCR);
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, 
+                                LPSPI_TCR_FRAMESZ_MASK, LPSPI_TCR_FRAMESZ(nbits - 1));
 
       /* Save the selection so that subsequent re-configurations will
        * be faster.
@@ -714,7 +656,7 @@ static void     s32k1xx_lpspi_setbits(struct s32k1xx_lpspidev_s *priv,
 
       if (men)
         {
-          modifyreg32(S32K1XX_LPSPI2_CR, 0, LPSPI_CR_MEN);
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_MEN);
         }
     }
 }
@@ -798,6 +740,7 @@ static void s32k1xx_lpspi_bind(struct spi_slave_ctrlr_s *ctrlr,
 
   priv->tx_head  = 0;
   priv->tx_tail  = 0;
+  priv->space_ramain = CONFIG_SPI_SLAVE_QSIZE;
 
   /* Call the slave device's getdata() method to get the value that will
    * be shifted out the SPI clock is detected.
@@ -929,7 +872,7 @@ static int s32k1xx_lpspi_enqueue(struct spi_slave_ctrlr_s *ctrlr,
   int next;
   int ret;
 
-  spiinfo("data=%04x\n", *(const uint32_t *)data);
+  spiinfo("data=%04x\n", *(const uint8_t *)data);
   DEBUGASSERT(priv != NULL && priv->dev != NULL);
 
   /* Get exclusive access to the SPI device */
@@ -945,37 +888,77 @@ static int s32k1xx_lpspi_enqueue(struct spi_slave_ctrlr_s *ctrlr,
    * Interrupts are disabled briefly.
    */
 
-  flags = enter_critical_section();
-  next = priv->tx_head + 1;
-  if (next >= CONFIG_SPI_SLAVE_QSIZE)
+  if (len == 0)
     {
-      next = 0;
+      len = 1;
     }
 
-  if (next == priv->tx_tail)
+  if (priv->space_ramain < len)
     {
       ret = -ENOSPC;
+      leave_critical_section(flags);
+      nxmutex_unlock(&priv->spilock);
+      
+      return ret;
     }
-  else
-    {
-      /* Save this new word as the next word to shifted out.  The current
-       * word written to the TX data registers is "committed" and will not
-       * be overwritten.
+
+  flags = enter_critical_section();
+
+  /* enqueque all byte of data to FIFO buffer */
+
+      /*               32 bits buffer = 1 word
+       * +-----------+-----------+-----------+-----------+
+       * |   byte 0  |   byte 1  |   byte 2  |   byte 3  |
+       * |  (8 bits) |  (8 bits) |  (8 bits) |  (8 bits) |
+       * +-----------+-----------+-----------+-----------+
+       *
+       * note: len = number of words sent by user
        */
 
-      priv->outq[priv->tx_head] = *(const uint32_t *)data;
+  priv->space_ramain -= len;
+  
+  for (ssize_t byte = 0; byte < len; byte++)
+    {
+      /* Save this new word as the next word to shifted out.  The current
+      * word written to the TX data registers is "committed" and will not
+      * be overwritten.
+      */
+
+      // priv->outq[priv->tx_head] = *(const uint32_t *)data;
+      // priv->tx_head = next;
+
+      /* store byte of data */
+
+      priv->outq[priv->tx_head] |= *(const uint8_t *) data    << 24;
+      priv->outq[priv->tx_head] |= *(const uint8_t *)(data+1) << 16;
+      priv->outq[priv->tx_head] |= *(const uint8_t *)(data+2) << 8;
+      priv->outq[priv->tx_head] |= *(const uint8_t *)(data+3);
+
+      /* Select next word */
+
+      next = priv->tx_head + 1;
+      if (next >= CONFIG_SPI_SLAVE_QSIZE)
+        {
+          next = 0;
+        }
       priv->tx_head = next;
+      
+      /* clear the next word before use */
+
+      priv->outq[priv->tx_head] = 0;
+
       ret = OK;
 
-      /* Enable TX interrupts if we have begun the transfer */
+    }
+      
+  /* Enable TX interrupts if we have begun the transfer */
+  
+  if (!priv->nss)
+    {
+      /* Enable TXDR/OVRE interrupts */
 
-      if (!priv->nss)
-        {
-          /* Enable TXDR/OVRE interrupts */
-
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
-                                     0, LPSPI_IER_TEIE | LPSPI_IER_TDIE);
-        }
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
+                                0, LPSPI_IER_TEIE | LPSPI_IER_TDIE);
     }
 
   leave_critical_section(flags);
@@ -1146,10 +1129,6 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
 
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_FCR_OFFSET, 
                                 LPSPI_FCR_TXWATER_MASK, LPSPI_FCR_TXWATER(3));
-
-      /* Enable BYSW */
-
-      // s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, 0, LPSPI_TCR_BYSW);  
       
       /* Enable LPSPI */
 
@@ -1172,8 +1151,11 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
       
   /* Set Transmit Command Register */
 
-  s32k1xx_lpspi_setbits(priv, 32);
-  s32k1xx_lpspi_setmode(priv, SPIDEV_MODE1);
+  // s32k1xx_lpspi_setbits(priv, 32);
+  // s32k1xx_lpspi_setmode(priv, SPIDEV_MODE1);
+
+  s32k1xx_lpspi_setbits(priv, CONFIG_SPI_SLAVE_DRIVER_WIDTH);
+  s32k1xx_lpspi_setmode(priv, CONFIG_SPI_SLAVE_DRIVER_MODE);
 
   return &priv->ctrlr;
 }
