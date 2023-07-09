@@ -1422,6 +1422,14 @@ static void s32k1xx_lpspi_exchange_nodma(struct spi_dev_s *dev,
                    src += 5;
                    dwords = true;
                    break;
+              
+              case 48:
+                   word  = (src[3] << 24) + (src[2] << 16)
+                         + (src[1] << 8) + src[0];
+                   word1 = (src[5] << 8) + src[4];
+                   src += 8;
+                   dwords = true;
+                   break;
 #endif
               default:
                       break;
@@ -1460,6 +1468,16 @@ static void s32k1xx_lpspi_exchange_nodma(struct spi_dev_s *dev,
                    dest[4] =  rword1      & 0xff;
                    dest += 5;
                    break;
+
+              case 48:
+                   dest[0] = (word >> 24)   & 0xff;
+                   dest[1] = (word >> 16)   & 0xff;
+                   dest[2] = (word >>  8)   & 0xff;
+                   dest[3] =  word          & 0xff;
+                   dest[4] = (rword1 >>  8) & 0xff;
+                   dest[5] =  rword1        & 0xff;
+                   dest += 8;
+                   break;
 #endif
 
               default:
@@ -1493,14 +1511,17 @@ static void s32k1xx_lpspi_exchange_nodma(struct spi_dev_s *dev,
             switch (framesize)
               {
               case 32:
-                   word = __builtin_bswap32(*src);
+                  //  word = __builtin_bswap32(*src);
+                   word = *src;
                    src += 4;
                    break;
 #ifdef CONFIG_S32K1XX_LPSPI_DWORD
               case 64:
-                   word  = __builtin_bswap32(src[0]);
-                   word1 = __builtin_bswap32(src[1]);
-                   src += 8;
+                  //  word  = __swap_uint32(src[0]);
+                  //  word1 = __swap_uint32(src[1]);
+                  //  src += 8;
+                   word  = *src++;
+                   word1 = *src++;
                    dwords = true;
 #endif
               default:
@@ -1866,7 +1887,7 @@ static void s32k1xx_lpspi_bus_initialize(struct s32k1xx_lpspidev_s *priv)
 
   /* Enable BYSW */
 
-  // s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, 0, LPSPI_TCR_BYSW);
+  s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, 0, LPSPI_TCR_BYSW);
 
   /* Set Configuration Register 1 related setting. */
 
