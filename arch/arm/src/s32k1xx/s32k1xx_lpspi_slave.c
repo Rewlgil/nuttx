@@ -733,8 +733,6 @@ static void s32k1xx_lpspi_bind(struct spi_slave_ctrlr_s *ctrlr,
    */
 
   SPIS_DEV_SELECT(dev, false);
-#warning Missing logic
-  SPIS_DEV_CMDDATA(dev, false);
 
   /* Discard any queued data */
 
@@ -755,9 +753,12 @@ static void s32k1xx_lpspi_bind(struct spi_slave_ctrlr_s *ctrlr,
   s32k1xx_lpspi_setmode(priv, mode);
   s32k1xx_lpspi_setbits(priv, nbits);
 
-  /* Clear pending interrupts by reading the SPI Status Register */
+  /* Clear pending interrupts */
 
-  regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_SR_OFFSET);
+  regval = LPSPI_SR_DMF | LPSPI_SR_REF | LPSPI_SR_TEF | LPSPI_SR_TCF |
+           LPSPI_SR_FCF | LPSPI_SR_WCF;
+  s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_SR_OFFSET, regval);
+  
   UNUSED(regval);
 
   /* Enable SPI interrupts (already enabled at the NVIC):
@@ -1096,6 +1097,22 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
     {
       flags = enter_critical_section();
 
+      /* Disable the SPI peripheral */
+
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_MEN, 0);
+      
+      /* Execute a software reset of the SPI (twice) */
+
+      s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 
+                             LPSPI_CR_RST | LPSPI_CR_RTF | LPSPI_CR_RRF);
+      s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 
+                             LPSPI_CR_RST | LPSPI_CR_RTF | LPSPI_CR_RRF);
+      s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0);
+
+      /* Configure LPSPI in slave mode */
+
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET, LPSPI_CFGR1_MASTER, 0);
+      
       /* Enable peripheral clocking to SPI2 */
 
       s32k1xx_pclk_enable(LPSPI2_CLK, true);
@@ -1107,33 +1124,22 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
       s32k1xx_pinconfig(PIN_LPSPI2_SCK);  /* Drives slave */
       s32k1xx_pinconfig(PIN_LPSPI2_PCS);
 
-      /* Disable the SPI peripheral */
-
-      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_MEN, 0);
-
-      /* Execute a software reset of the SPI (twice) */
-
-      s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 
-                             LPSPI_CR_RST | LPSPI_CR_RTF | LPSPI_CR_RRF);
-      s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 
-                             LPSPI_CR_RST | LPSPI_CR_RTF | LPSPI_CR_RRF);
-      
-      s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0);
-      leave_critical_section(flags);
-
       /* Select PCS pin LPSPI_PCS[3] (PIN_LPSPI2_PCS0_4) */
 
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, 0, LPSPI_TCR_PCS_3);
+
+      leave_critical_section(flags);
 
       /* Set water masks */
 
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_FCR_OFFSET, 
                                 LPSPI_FCR_TXWATER_MASK, LPSPI_FCR_TXWATER(3));
+
+      /* Set Transmit Command Register */
       
-      /* Enable LPSPI */
-
-      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_MEN);
-
+      s32k1xx_lpspi_setbits(priv, 48);
+      s32k1xx_lpspi_setmode(priv, CONFIG_SPI_SLAVE_DRIVER_MODE);
+      
       /* Disable all SPI interrupts at the SPI peripheral */
 
       s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_IER_OFFSET, 0);
@@ -1142,20 +1148,15 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
 
       DEBUGVERIFY(irq_attach(priv->irq, s32k1xx_lpspi_interrupt, priv));
       up_enable_irq(priv->irq);
+      
+      /* Enable LPSPI */
+
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_MEN);
 
       s32k1xx_lpspi_dumpregs(priv, "After initialization");
 
-
       priv->initialized = true;
     }
-      
-  /* Set Transmit Command Register */
-
-  // s32k1xx_lpspi_setbits(priv, 32);
-  // s32k1xx_lpspi_setmode(priv, SPIDEV_MODE1);
-
-  s32k1xx_lpspi_setbits(priv, CONFIG_SPI_SLAVE_DRIVER_WIDTH);
-  s32k1xx_lpspi_setmode(priv, CONFIG_SPI_SLAVE_DRIVER_MODE);
 
   return &priv->ctrlr;
 }
