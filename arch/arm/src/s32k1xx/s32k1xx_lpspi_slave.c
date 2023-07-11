@@ -267,262 +267,6 @@ static void s32k1xx_lpspi_dumpregs(struct s32k1xx_lpspidev_s *priv, const char *
 #endif
 
 /****************************************************************************
- * Name: s32k1xx_lpspi_interrupt
- *
- * Description:
- *   Common SPI interrupt handler
- *
- * Input Parameters:
- *   priv - SPI controller CS state
- *
- * Returned Value:
- *   Standard interrupt return value.
- *
- ****************************************************************************/
-
-static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
-{
-  struct s32k1xx_lpspidev_s *priv = (struct s32k1xx_lpspidev_s *)arg;
-  uint32_t sr;
-  uint32_t ier;
-  uint32_t pending;
-  uint32_t regval;
-
-  DEBUGASSERT(priv != NULL);
-
-  /* We loop because the TDRE interrupt will probably immediately follow the
-   * RDRF interrupt and we might be able to catch it in this handler
-   * execution.
-   */
-
-  for (; ; )
-    {
-      /* Get the current set of pending/enabled interrupts */
-
-      sr      = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_SR_OFFSET);
-      ier     = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_IER_OFFSET);
-      pending = sr & ier;
-
-      /* Return from the interrupt handler when all pending interrupts have
-       * been processed.
-       */
-
-      if (pending == 0)
-        {
-          return OK;
-        }
-
-      /* The SPI waits until NSS goes active before receiving the serial
-       * clock from an external master. When NSS falls, the clock is
-       * validated and the data is loaded in the SPI_RDR depending on the
-       * BITS field configured in the SPI_CSR0.  These bits are processed
-       * following a phase and a polarity defined respectively by the NCPHA
-       * and CPOL bits in the SPI_CSR0.
-       *
-       * When all bits are processed, the received data is transferred in
-       * the SPI_RDR and the RDRF bit rises. If the SPI_RDR has not been
-       * read before new data is received, the Overrun Error Status (OVRES)
-       * bit in the SPI_SR is set. As long as this flag is set, data is
-       * loaded in the SPI_RDR. The user must read SPI_SR to clear the OVRES
-       * bit.
-       */
-
-#ifdef CONFIG_DEBUG_SPI_ERROR
-      /* Check the RX data overflow condition */
-
-      if ((pending & LPSPI_SR_REF) != 0)
-        {
-          /* If debug is enabled, report any overrun errors */
-
-          spierr("ERROR: Overrun (OVRES): %08x\n", pending);
-
-          /* OVRES was cleared by the status read. */
-
-          /* cleared REF flag **Just for testing** */
-
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_SR_OFFSET,
-                                    0, LPSPI_SR_REF);
-        }
-#endif
-
-      /* Check for the availability of RX data */
-
-      if ((pending & LPSPI_SR_RDF) != 0)
-        {
-          uint32_t data;
-
-          /* We get no indication of the falling edge of NSS.  But if we are
-           * here then it must have fallen.
-           */
-
-          if (priv->nss)
-            {
-              priv->nss = false;
-              SPIS_DEV_SELECT(priv->dev, true);
-            }
-
-          /* Read the RDR to get the data and to clear the pending RDRF
-           * interrupt.
-           */
-
-          regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_RDR_OFFSET);
-          data   = (uint32_t)
-            ((regval & LPSPI_RDR_DATA_MASK) >> LPSPI_RDR_DATA_SHIFT);
-
-          /* Enable TEF/TDF interrupts */
-
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
-                                    0, LPSPI_IER_TEIE | LPSPI_IER_TDIE);
-
-          /* Report the receipt of data to the SPI device driver */
-
-          SPIS_DEV_RECEIVE(priv->dev, (const uint32_t *)&data,
-                           sizeof(data));
-        }
-
-      /* When a transfer starts, the data shifted out is the data present
-       * in the Shift register. If no data has been written in the SPI_TDR,
-       * the last data received is transferred. If no data has been received
-       * since the last reset, all bits are transmitted low, as the Shift
-       * register resets to 0.
-       *
-       * When a first data is written in the SPI_TDR, it is transferred
-       * immediately in the Shift register and the TDRE flag rises. If new
-       * data is written, it remains in the SPI_TDR until a transfer occurs,
-       * i.e., NSS falls and there is a valid clock on the SPCK pin. When
-       * the transfer occurs, the last data written in the SPI_TDR is
-       * transferred in the Shift register and the TDRE flag rises. This
-       * enables frequent updates of critical variables with single
-       * transfers.
-       *
-       * Then, new data is loaded in the Shift register from the SPI_TDR. If
-       * no character is ready to be transmitted, i.e., no character has been
-       * written in the SPI_TDR since the last load from the SPI_TDR to the
-       * Shift register, the SPI_TDR is retransmitted. In this case the
-       * Underrun Error Status Flag (UNDES) is set in the SPI_SR.
-       */
-
-#ifdef CONFIG_DEBUG_SPI_ERROR
-      /* Check the TX data underflow condition */
-
-      if ((pending & LPSPI_SR_TEF) != 0)
-        {
-          /* If debug is enabled, report any overrun errors */
-
-          spierr("ERROR: Underrun (UNDEX): %08x\n", pending);
-
-          /* UNDES was cleared by the status read. */
-
-          /* cleared REF flag **Just for testing** */
-
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_SR_OFFSET,
-                                    0, LPSPI_SR_TEF);
-        }
-#endif
-
-      /* Output the next TX data */
-
-      if ((pending & LPSPI_SR_TDF) != 0)
-        {
-          /* Get the next output value and write it to the TDR
-           * The TDRE interrupt is cleared by writing to the from RDR.
-           */
-
-          regval = s32k1xx_lpspi_dequeue(priv);
-          s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
-        }
-
-      /* The SPI slave hardware provides only an event when NSS rises
-       * which may or many not happen at the end of a transfer.  NSSR was
-       * cleared by the status read.
-       */
-
-      if ((pending & LPSPI_SR_FCF) != 0)
-        {
-          /* Disable further TEF/TDF interrupts */
-
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
-                                    LPSPI_IER_TEIE | LPSPI_IER_TDIE, 0);
-
-          /* Report the state change to the SPI device driver */
-
-          priv->nss = true;
-          SPIS_DEV_SELECT(priv->dev, false);
-        }
-    }
-
-  return OK;
-}
-
-/****************************************************************************
- * Name: s32k1xx_lpspi_dequeue
- *
- * Description:
- *   Return the next queued output value.  If nothing is in the output queue,
- *   then return the last value obtained from getdata();
- *
- * Input Parameters:
- *   priv - SPI controller CS state
- *
- * Assumptions:
- *   Called only from the SPI interrupt handler so all interrupts are
- *   disabled.
- *
- ****************************************************************************/
-
-static uint32_t s32k1xx_lpspi_dequeue(struct s32k1xx_lpspidev_s *priv)
-{
-  uint32_t ret;
-  int next;
-
-  /* Is the queue empty? */
-
-  if (priv->tx_head != priv->tx_tail)
-    {
-      /* No, take the oldest value from the tail of the circular buffer */
-
-      ret = priv->outq[priv->tx_tail];
-
-      /* Update the tail index, handling wraparound */
-
-      next = priv->tx_tail + 1;
-      if (next >= CONFIG_SPI_SLAVE_QSIZE)
-        {
-          next = 0;
-        }
-
-      priv->tx_tail = next;
-
-      /* If the queue is empty Disable further TXDR/OVRE interrupts until
-       * spi_enqueue() is called or until we received another command.  We
-       * do this only for the case where NSS is non-functional (tied to
-       * ground) and we need to end transfers in some fashion.
-       */
-
-      if (priv->tx_head == next)
-        {
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
-                                    LPSPI_IER_TEIE | LPSPI_IER_TDIE, 0);
-        }
-
-      priv->space_ramain += 1;
-    }
-  else
-    {
-      /* Yes, return the last value we got from the getdata() method */
-
-      ret = priv->outval;
-
-      /* Disable further TXDR/OVRE interrupts until spi_enqueue() is called */
-
-      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
-                                LPSPI_IER_TEIE | LPSPI_IER_TDIE, 0);
-    }
-
-  return ret;
-}
-
-/****************************************************************************
  * Name: s32k1xx_lpspi_setmode
  *
  * Description:
@@ -620,7 +364,6 @@ static void s32k1xx_lpspi_setmode(struct s32k1xx_lpspidev_s *priv,
 static void     s32k1xx_lpspi_setbits(struct s32k1xx_lpspidev_s *priv,
                                       int nbits)
 {
-  uint32_t regval;
   uint32_t men;
 
   spiinfo("nbits=%d\n", nbits);
@@ -659,6 +402,477 @@ static void     s32k1xx_lpspi_setbits(struct s32k1xx_lpspidev_s *priv,
           s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_MEN);
         }
     }
+}
+
+/****************************************************************************
+ * Name: s32k1xx_lpspi_enqueue
+ *
+ * Description:
+ *   Enqueue the next value to be shifted out from the interface. This adds
+ *   the word to the controller driver for a subsequent transfer but has no
+ *   effect on any in-process or currently "committed" transfers.
+ *
+ * Input Parameters:
+ *   ctrlr - SPI Slave controller interface instance
+ *   data  - Pointer to the command/data mode data to be shifted out.
+ *           The data width must be aligned to the nbits parameter which was
+ *           previously provided to the bind() method.
+ *   len   - Number of units of "nbits" wide to enqueue,
+ *           "nbits" being the data width previously provided to the bind()
+ *           method.
+ *
+ * Returned Value:
+ *   Number of data items successfully queued, or a negated errno:
+ *         - "len" if all the data was successfully queued
+ *         - "0..len-1" if queue is full
+ *         - "-errno" in any other error
+ *
+ ****************************************************************************/
+
+static int s32k1xx_lpspi_enqueue(struct spi_slave_ctrlr_s *ctrlr,
+                            const void *data,
+                            size_t len)
+{
+  struct s32k1xx_lpspidev_s *priv = (struct s32k1xx_lpspidev_s *)ctrlr;
+  irqstate_t flags;
+  int next;
+  int ret;
+  ssize_t nwords;
+
+  DEBUGASSERT(priv != NULL && priv->dev != NULL);
+
+  /* Get exclusive access to the SPI device */
+
+  ret = nxmutex_lock(&priv->spilock);
+  if (ret < 0)
+    {
+      return 0;
+    }
+
+  /* Check if this word would overflow the circular buffer
+   *
+   * Interrupts are disabled briefly.
+   */
+
+  if (len == 0)
+    {
+      len = 1;
+    }
+
+  flags = enter_critical_section();
+
+  /* enqueque all words of data to FIFO buffer */
+  
+  for (nwords = 0; nwords < len; nwords++)
+    {
+      /* Save this new word as the next word to shifted out.  The current
+      * word written to the TX data registers is "committed" and will not
+      * be overwritten.
+      */
+
+      /* store words of data */
+      if (SPIS_CTRLR_QFULL(ctrlr) == false)
+        {
+          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++);
+          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 8;
+          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 16;
+          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 24;
+          
+          spiinfo("enqueue [%d]:%04X %04X", priv->tx_head,
+                  (uint16_t)((priv->outq[priv->tx_head] >> 16) & 0xffff),
+                  (uint16_t)( priv->outq[priv->tx_head]        & 0xffff));
+          
+          /* Select next word */
+
+          next = priv->tx_head + 1;
+          if (next >= CONFIG_SPI_SLAVE_QSIZE)
+            {
+              next = 0;
+            }
+          priv->tx_head = next;
+          
+          /* clear the next word before use */
+
+          priv->outq[priv->tx_head] = 0;
+        }
+      else
+        {
+          break;
+        }
+
+    }
+
+  if (nwords == 0)
+    {
+      spierr("Queue full");
+    }
+
+  /* enable interrupt when TX data is ready */
+
+  s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
+                            0, LPSPI_IER_TEIE | LPSPI_IER_TDIE | LPSPI_IER_FCIE);
+
+  leave_critical_section(flags);
+  nxmutex_unlock(&priv->spilock);
+  return nwords;
+}
+
+/****************************************************************************
+ * Name: s32k1xx_lpspi_dequeue
+ *
+ * Description:
+ *   Return the next queued output value.  If nothing is in the output queue,
+ *   then return the last value obtained from getdata();
+ *
+ * Input Parameters:
+ *   priv - SPI controller CS state
+ *
+ * Assumptions:
+ *   Called only from the SPI interrupt handler so all interrupts are
+ *   disabled.
+ *
+ ****************************************************************************/
+
+static uint32_t s32k1xx_lpspi_dequeue(struct s32k1xx_lpspidev_s *priv)
+{
+  uint32_t ret;
+  int next;
+
+  /* Is the queue empty? */
+
+  if (priv->tx_head != priv->tx_tail)
+    {
+      /* No, take the oldest value from the tail of the circular buffer */
+
+      ret = priv->outq[priv->tx_tail];
+
+      spiinfo("dequeue [%d]:%04X %04X", priv->tx_tail,
+              (uint16_t)((priv->outq[priv->tx_tail] >> 16) & 0xffff),
+              (uint16_t)( priv->outq[priv->tx_tail]        & 0xffff));
+
+      /* Update the tail index, handling wraparound */
+
+      next = priv->tx_tail + 1;
+      if (next >= CONFIG_SPI_SLAVE_QSIZE)
+        {
+          next = 0;
+        }
+
+      priv->tx_tail = next;
+
+      /* If the queue is empty Disable further TXDR/OVRE interrupts until
+       * spi_enqueue() is called or until we received another command.  We
+       * do this only for the case where NSS is non-functional (tied to
+       * ground) and we need to end transfers in some fashion.
+       */
+
+      if (priv->tx_head == next)
+        {
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
+                                    LPSPI_IER_TEIE | LPSPI_IER_TDIE | LPSPI_IER_FCIE, 0);
+        }
+    }
+  else
+    {
+      /* Yes, return the last value we got from the getdata() method */
+
+      ret = priv->outval;
+
+      /* Disable further TXDR/OVRE interrupts until spi_enqueue() is called */
+
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
+                                LPSPI_IER_TEIE | LPSPI_IER_TDIE | LPSPI_IER_FCIE, 0);
+    }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: s32k1xx_lpspi_qfull
+ *
+ * Description:
+ *   Return true if the queue is full or false if there is space to add an
+ *   additional word to the queue.
+ *
+ * Input Parameters:
+ *   ctrlr - SPI Slave controller interface instance
+ *
+ * Returned Value:
+ *   true if the output queue is full, false otherwise.
+ *
+ ****************************************************************************/
+
+static bool s32k1xx_lpspi_qfull(struct spi_slave_ctrlr_s *ctrlr)
+{
+  struct s32k1xx_lpspidev_s *priv = (struct s32k1xx_lpspidev_s *)ctrlr;
+  irqstate_t flags;
+  bool bret;
+  int next;
+
+  DEBUGASSERT(priv != NULL && priv->dev != NULL);
+
+  /* Check if another word would overflow the circular buffer
+   *
+   * Interrupts are disabled briefly.
+   */
+
+  flags = enter_critical_section();
+  next = priv->tx_head + 1;
+  if (next >= CONFIG_SPI_SLAVE_QSIZE)
+    {
+      next = 0;
+    }
+
+  bret = (next == priv->tx_tail);
+  leave_critical_section(flags);
+  return bret;
+}
+
+/****************************************************************************
+ * Name: s32k1xx_lpspi_qflush
+ *
+ * Description:
+ *   Discard all saved values in the output queue. On return from this
+ *   function the output queue will be empty. Any in-progress or otherwise
+ *   "committed" output values may not be flushed.
+ *
+ * Input Parameters:
+ *   ctrlr - SPI Slave controller interface instance
+ *
+ * Returned Value:
+ *   None.
+ *
+ ****************************************************************************/
+
+static void s32k1xx_lpspi_qflush(struct spi_slave_ctrlr_s *ctrlr)
+{
+  struct s32k1xx_lpspidev_s *priv = (struct s32k1xx_lpspidev_s *)ctrlr;
+  irqstate_t flags;
+
+  DEBUGASSERT(priv != NULL && priv->dev != NULL);
+
+  /* Get exclusive access to the SPI device */
+
+  nxmutex_lock(&priv->spilock);
+
+  /* Mark the buffer empty, momentarily disabling interrupts */
+
+  flags = enter_critical_section();
+  priv->tx_head = 0;
+  priv->tx_tail = 0;
+  leave_critical_section(flags);
+  nxmutex_unlock(&priv->spilock);
+}
+
+/****************************************************************************
+ * Name: s32k1xx_lpspi_interrupt
+ *
+ * Description:
+ *   Common SPI interrupt handler
+ *
+ * Input Parameters:
+ *   priv - SPI controller CS state
+ *
+ * Returned Value:
+ *   Standard interrupt return value.
+ *
+ ****************************************************************************/
+
+static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
+{
+  struct s32k1xx_lpspidev_s *priv = (struct s32k1xx_lpspidev_s *)arg;
+  uint32_t sr;
+  uint32_t ier;
+  uint32_t pending;
+  uint32_t regval;
+
+  DEBUGASSERT(priv != NULL);
+
+  /* We loop because the TDRE interrupt will probably immediately follow the
+   * RDRF interrupt and we might be able to catch it in this handler
+   * execution.
+   */
+
+  for (; ; )
+    {
+      /* Get the current set of pending/enabled interrupts */
+
+      sr      = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_SR_OFFSET);
+      ier     = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_IER_OFFSET);
+      pending = sr & ier;
+
+      /* Return from the interrupt handler when all pending interrupts have
+       * been processed.
+       */
+
+      if (pending == 0)
+        {
+          return OK;
+        }
+
+      /* The SPI waits until NSS goes active before receiving the serial
+       * clock from an external master. When NSS falls, the clock is
+       * validated and the data is loaded in the SPI_RDR depending on the
+       * BITS field configured in the SPI_CSR0.  These bits are processed
+       * following a phase and a polarity defined respectively by the NCPHA
+       * and CPOL bits in the SPI_CSR0.
+       *
+       * When all bits are processed, the received data is transferred in
+       * the SPI_RDR and the RDRF bit rises. If the SPI_RDR has not been
+       * read before new data is received, the Overrun Error Status (OVRES)
+       * bit in the SPI_SR is set. As long as this flag is set, data is
+       * loaded in the SPI_RDR. The user must read SPI_SR to clear the OVRES
+       * bit.
+       */
+
+      /* Check the RX data overflow condition */
+
+      if ((pending & LPSPI_SR_REF) != 0)
+        {
+          spierr("ERROR: RX FIFO overflows: %08x\n", pending);
+
+          /* End the transfer by clear the interrupt flag and reset FIFO */
+
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET, 
+                                    LPSPI_IER_RDIE, 0);
+
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_RRF);
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_RRF, 0);
+
+          /* cleared Recieve Error Flag (REF) flag */
+
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_SR_OFFSET,
+                                    0, LPSPI_SR_REF);
+
+          /* Renable interrupt flag again after reset FIFO */
+
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET, 
+                                    0, LPSPI_IER_RDIE);
+        }
+
+      /* Check for the availability of RX data */
+
+      if ((pending & LPSPI_SR_RDF) != 0)
+        {
+          uint32_t data;
+          uint32_t data1;
+
+          /* We get no indication of the falling edge of NSS. But if we are
+           * here then it must have fallen.
+           */
+
+          if (priv->nss)
+            {
+              priv->nss = false;
+              SPIS_DEV_SELECT(priv->dev, true);
+            }
+
+          /* Read the RDR to get the data and to clear the pending RDRF
+           * interrupt.
+           */
+
+          regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_RDR_OFFSET);
+          data   = (uint32_t)
+            ((regval & LPSPI_RDR_DATA_MASK) >> LPSPI_RDR_DATA_SHIFT);
+          
+          /* Report the receipt of data to the SPI device driver */
+          
+          SPIS_DEV_RECEIVE(priv->dev, (const uint32_t *)&data,
+                           sizeof(data));
+
+          if (priv->nbits > 32)
+            {
+              regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_RDR_OFFSET);
+              data1  = (uint32_t)
+                ((regval & LPSPI_RDR_DATA_MASK) >> LPSPI_RDR_DATA_SHIFT);
+              
+              SPIS_DEV_RECEIVE(priv->dev, (const uint32_t *)&data1,
+                               sizeof(data1));
+            }
+        }
+
+      /* When a transfer starts, the data shifted out is the data present
+       * in the Shift register. If no data has been written in the SPI_TDR,
+       * the last data received is transferred. If no data has been received
+       * since the last reset, all bits are transmitted low, as the Shift
+       * register resets to 0.
+       *
+       * When a first data is written in the SPI_TDR, it is transferred
+       * immediately in the Shift register and the TDRE flag rises. If new
+       * data is written, it remains in the SPI_TDR until a transfer occurs,
+       * i.e., NSS falls and there is a valid clock on the SPCK pin. When
+       * the transfer occurs, the last data written in the SPI_TDR is
+       * transferred in the Shift register and the TDRE flag rises. This
+       * enables frequent updates of critical variables with single
+       * transfers.
+       *
+       * Then, new data is loaded in the Shift register from the SPI_TDR. If
+       * no character is ready to be transmitted, i.e., no character has been
+       * written in the SPI_TDR since the last load from the SPI_TDR to the
+       * Shift register, the SPI_TDR is retransmitted. In this case the
+       * Underrun Error Status Flag (UNDES) is set in the SPI_SR.
+       */
+
+      /* Check the TX data underflow condition */
+
+      if ((pending & LPSPI_SR_TEF) != 0)
+        {
+          spierr("ERROR: Underrun (UNDEX): %08x\n", pending);
+          
+          /* End the transfer by clear the interrupt flag */
+
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET, 
+                                    LPSPI_IER_TDIE, 0);
+
+          /* cleared Recieve Error Flag (TEF) flag */
+
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_SR_OFFSET,
+                                    0, LPSPI_SR_TEF);
+
+          /* Reenable interrupt flag again after reset FIFO */
+
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET, 
+                                    0, LPSPI_IER_TDIE);
+        }
+
+      /* Output the next TX data */
+
+      if ((pending & LPSPI_SR_TDF) != 0)
+        {
+          /* Get the next output value and write it to the TDR
+           * The TDRE interrupt is cleared by writing to the from RDR.
+           */
+
+          regval = s32k1xx_lpspi_dequeue(priv);
+          s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
+
+          if (priv->nbits > 32)
+            {
+              regval = s32k1xx_lpspi_dequeue(priv);
+              s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
+            }
+        }
+
+      /* The SPI slave hardware provides only an event when NSS rises
+       * which may or many not happen at the end of a transfer.  NSSR was
+       * cleared by the status read.
+       */
+
+      if ((pending & LPSPI_SR_FCF) != 0)
+        {
+          /* Disable further TEF/TDF interrupts */
+
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
+                                    LPSPI_IER_TEIE | LPSPI_IER_TDIE | LPSPI_IER_FCIE, 0);
+
+          /* Report the state change to the SPI device driver */
+
+          priv->nss = true;
+          SPIS_DEV_SELECT(priv->dev, false);
+        }
+    }
+
+  return OK;
 }
 
 /****************************************************************************
@@ -738,7 +952,6 @@ static void s32k1xx_lpspi_bind(struct spi_slave_ctrlr_s *ctrlr,
 
   priv->tx_head  = 0;
   priv->tx_tail  = 0;
-  priv->space_ramain = CONFIG_SPI_SLAVE_QSIZE;
 
   /* Call the slave device's getdata() method to get the value that will
    * be shifted out the SPI clock is detected.
@@ -780,11 +993,7 @@ static void s32k1xx_lpspi_bind(struct spi_slave_ctrlr_s *ctrlr,
    * the transfer of data actually starts.
    */
 
-  regval  = (LPSPI_IER_RDIE | LPSPI_IER_FCIE);
-#ifdef CONFIG_DEBUG_SPI_ERROR
-  regval |= LPSPI_IER_TDIE;
-#endif
-
+  regval = LPSPI_IER_REIE | LPSPI_IER_FCIE | LPSPI_IER_RDIE;
   s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET, 0, regval);
 
   nxmutex_unlock(&priv->spilock);
@@ -836,226 +1045,6 @@ static void s32k1xx_lpspi_unbind(struct spi_slave_ctrlr_s *ctrlr)
   s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_RST);
   s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_RST);
 
-  nxmutex_unlock(&priv->spilock);
-}
-
-/****************************************************************************
- * Name: s32k1xx_lpspi_enqueue
- *
- * Description:
- *   Enqueue the next value to be shifted out from the interface. This adds
- *   the word to the controller driver for a subsequent transfer but has no
- *   effect on any in-process or currently "committed" transfers.
- *
- * Input Parameters:
- *   ctrlr - SPI Slave controller interface instance
- *   data  - Pointer to the command/data mode data to be shifted out.
- *           The data width must be aligned to the nbits parameter which was
- *           previously provided to the bind() method.
- *   len   - Number of units of "nbits" wide to enqueue,
- *           "nbits" being the data width previously provided to the bind()
- *           method.
- *
- * Returned Value:
- *   Number of data items successfully queued, or a negated errno:
- *         - "len" if all the data was successfully queued
- *         - "0..len-1" if queue is full
- *         - "-errno" in any other error
- *
- ****************************************************************************/
-
-static int s32k1xx_lpspi_enqueue(struct spi_slave_ctrlr_s *ctrlr,
-                            const void *data,
-                            size_t len)
-{
-  struct s32k1xx_lpspidev_s *priv = (struct s32k1xx_lpspidev_s *)ctrlr;
-  irqstate_t flags;
-  int next;
-  int ret;
-
-  spiinfo("data=%04x\n", *(const uint8_t *)data);
-  DEBUGASSERT(priv != NULL && priv->dev != NULL);
-
-  /* Get exclusive access to the SPI device */
-
-  ret = nxmutex_lock(&priv->spilock);
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  /* Check if this word would overflow the circular buffer
-   *
-   * Interrupts are disabled briefly.
-   */
-
-  if (len == 0)
-    {
-      len = 1;
-    }
-
-  if (priv->space_ramain < len)
-    {
-      ret = -ENOSPC;
-      leave_critical_section(flags);
-      nxmutex_unlock(&priv->spilock);
-      
-      return ret;
-    }
-
-  flags = enter_critical_section();
-
-  /* enqueque all byte of data to FIFO buffer */
-
-      /*               32 bits buffer = 1 word
-       * +-----------+-----------+-----------+-----------+
-       * |   byte 0  |   byte 1  |   byte 2  |   byte 3  |
-       * |  (8 bits) |  (8 bits) |  (8 bits) |  (8 bits) |
-       * +-----------+-----------+-----------+-----------+
-       *
-       * note: len = number of words sent by user
-       */
-
-  priv->space_ramain -= len;
-  
-  for (ssize_t byte = 0; byte < len; byte++)
-    {
-      /* Save this new word as the next word to shifted out.  The current
-      * word written to the TX data registers is "committed" and will not
-      * be overwritten.
-      */
-
-      // priv->outq[priv->tx_head] = *(const uint32_t *)data;
-      // priv->tx_head = next;
-
-      /* store byte of data */
-
-      priv->outq[priv->tx_head] |= *(const uint8_t *) data    << 24;
-      priv->outq[priv->tx_head] |= *(const uint8_t *)(data+1) << 16;
-      priv->outq[priv->tx_head] |= *(const uint8_t *)(data+2) << 8;
-      priv->outq[priv->tx_head] |= *(const uint8_t *)(data+3);
-
-      /* Select next word */
-
-      next = priv->tx_head + 1;
-      if (next >= CONFIG_SPI_SLAVE_QSIZE)
-        {
-          next = 0;
-        }
-      priv->tx_head = next;
-      
-      /* clear the next word before use */
-
-      priv->outq[priv->tx_head] = 0;
-
-      ret = OK;
-
-    }
-      
-  /* Enable TX interrupts if we have begun the transfer */
-  
-  if (!priv->nss)
-    {
-      /* Enable TXDR/OVRE interrupts */
-
-      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
-                                0, LPSPI_IER_TEIE | LPSPI_IER_TDIE);
-    }
-
-  leave_critical_section(flags);
-  nxmutex_unlock(&priv->spilock);
-  return ret;
-}
-
-/****************************************************************************
- * Name: s32k1xx_lpspi_qfull
- *
- * Description:
- *   Return true if the queue is full or false if there is space to add an
- *   additional word to the queue.
- *
- * Input Parameters:
- *   ctrlr - SPI Slave controller interface instance
- *
- * Returned Value:
- *   true if the output queue is full, false otherwise.
- *
- ****************************************************************************/
-
-static bool s32k1xx_lpspi_qfull(struct spi_slave_ctrlr_s *ctrlr)
-{
-  struct s32k1xx_lpspidev_s *priv = (struct s32k1xx_lpspidev_s *)ctrlr;
-  irqstate_t flags;
-  bool bret;
-  int ret;
-  int next;
-
-  DEBUGASSERT(priv != NULL && priv->dev != NULL);
-
-  /* Get exclusive access to the SPI device */
-
-  ret = nxmutex_lock(&priv->spilock);
-  if (ret < 0)
-    {
-      /* REVISIT:  No mechanism to report error.  This error should only
-       * occurr if the calling task was canceled.
-       */
-
-      spierr("RROR: nxmutex_lock failed: %d\n", ret);
-      return true;
-    }
-
-  /* Check if another word would overflow the circular buffer
-   *
-   * Interrupts are disabled briefly.
-   */
-
-  flags = enter_critical_section();
-  next = priv->tx_head + 1;
-  if (next >= CONFIG_SPI_SLAVE_QSIZE)
-    {
-      next = 0;
-    }
-
-  bret = (next == priv->tx_tail);
-  leave_critical_section(flags);
-  nxmutex_unlock(&priv->spilock);
-  return bret;
-}
-
-/****************************************************************************
- * Name: s32k1xx_lpspi_qflush
- *
- * Description:
- *   Discard all saved values in the output queue. On return from this
- *   function the output queue will be empty. Any in-progress or otherwise
- *   "committed" output values may not be flushed.
- *
- * Input Parameters:
- *   ctrlr - SPI Slave controller interface instance
- *
- * Returned Value:
- *   None.
- *
- ****************************************************************************/
-
-static void s32k1xx_lpspi_qflush(struct spi_slave_ctrlr_s *ctrlr)
-{
-  struct s32k1xx_lpspidev_s *priv = (struct s32k1xx_lpspidev_s *)ctrlr;
-  irqstate_t flags;
-
-  DEBUGASSERT(priv != NULL && priv->dev != NULL);
-
-  /* Get exclusive access to the SPI device */
-
-  nxmutex_lock(&priv->spilock);
-
-  /* Mark the buffer empty, momentarily disabling interrupts */
-
-  flags = enter_critical_section();
-  priv->tx_head = 0;
-  priv->tx_tail = 0;
-  leave_critical_section(flags);
   nxmutex_unlock(&priv->spilock);
 }
 
@@ -1134,10 +1123,12 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
 
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_FCR_OFFSET, 
                                 LPSPI_FCR_TXWATER_MASK, LPSPI_FCR_TXWATER(3));
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_FCR_OFFSET, 
+                                LPSPI_FCR_RXWATER_MASK, LPSPI_FCR_RXWATER(1));
 
       /* Set Transmit Command Register */
       
-      s32k1xx_lpspi_setbits(priv, 48);
+      s32k1xx_lpspi_setbits(priv,8);
       s32k1xx_lpspi_setmode(priv, CONFIG_SPI_SLAVE_DRIVER_MODE);
       
       /* Disable all SPI interrupts at the SPI peripheral */
