@@ -350,9 +350,19 @@ static ssize_t spi_slave_write(FAR struct file *filep,
   inode = filep->f_inode;
   priv = (FAR struct spi_slave_driver_s *)inode->i_private;
 
+  memset(priv->tx_buffer, 0, CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE);
   memcpy(priv->tx_buffer, buffer, buflen);
   priv->tx_length = buflen;
   num_words = BYTES2WORDS(priv->tx_length);
+  
+  /* if the data doesn't fit the the buffer put zero after the LSB 
+   * to complete the words
+   */
+
+  if (priv->tx_length % (CONFIG_SPI_SLAVE_DRIVER_WIDTH / 8) != 0)
+    {
+      num_words += 1;
+    }
 
   enqueued_bytes = WORDS2BYTES(SPIS_CTRLR_ENQUEUE(priv->ctrlr,
                                                   priv->tx_buffer,
@@ -624,7 +634,7 @@ int spi_slave_register(FAR struct spi_slave_ctrlr_s *ctrlr, int bus)
 
   SPIS_CTRLR_BIND(priv->ctrlr, (FAR struct spi_slave_dev_s *)priv,
                   CONFIG_SPI_SLAVE_DRIVER_MODE,
-                  CONFIG_SPI_SLAVE_DRIVER_WIDTH);
+                  8);
 
   spiinfo("SPI Slave driver loaded successfully!\n");
 
