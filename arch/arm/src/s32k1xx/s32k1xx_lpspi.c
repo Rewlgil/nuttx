@@ -1424,10 +1424,10 @@ static void s32k1xx_lpspi_exchange_nodma(struct spi_dev_s *dev,
                    break;
               
               case 48:
-                   word  = (src[3] << 24) + (src[2] << 16)
-                         + (src[1] << 8) + src[0];
-                   word1 = (src[5] << 8) + src[4];
-                   src += 8;
+                  word  = (src[0] << 24) + (src[1] << 16)
+                         + (src[2] << 8) + src[3];
+                   word1 = (src[4] << 8) + src[5];
+                   src += 6;
                    dwords = true;
                    break;
 #endif
@@ -1476,7 +1476,7 @@ static void s32k1xx_lpspi_exchange_nodma(struct spi_dev_s *dev,
                    dest[3] =  word          & 0xff;
                    dest[4] = (rword1 >>  8) & 0xff;
                    dest[5] =  rword1        & 0xff;
-                   dest += 8;
+                   dest += 6;
                    break;
 #endif
 
@@ -1554,6 +1554,7 @@ static void s32k1xx_lpspi_exchange_nodma(struct spi_dev_s *dev,
               {
               case 32:
                    *dest = __builtin_bswap32(word);
+                  // *dest = word;
                    dest += 4;
                    break;
 #ifdef CONFIG_S32K1XX_LPSPI_DWORD
@@ -1561,6 +1562,8 @@ static void s32k1xx_lpspi_exchange_nodma(struct spi_dev_s *dev,
                    dest[0] = __builtin_bswap32(word);
                    dest[1] = __builtin_bswap32(rword1);
                    dest += 8;
+                  // *dest++ = word;
+                  // *dest++ = rword1;
                    break;
 #endif
 
@@ -1586,6 +1589,7 @@ static void s32k1xx_lpspi_exchange_nodma(struct spi_dev_s *dev,
           if (src)
             {
               word = swap16(*src++);
+              // word = *src++;
 
               /* read the required number of bytes */
             }
@@ -1603,6 +1607,7 @@ static void s32k1xx_lpspi_exchange_nodma(struct spi_dev_s *dev,
           if (dest)
             {
               *dest++ = swap16(word);
+              // *dest++ = word;
             }
         }
     }
