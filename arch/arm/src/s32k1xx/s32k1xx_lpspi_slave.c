@@ -114,10 +114,9 @@ static int      s32k1xx_lpspi_interrupt(int irq, void *context, void *arg);
 /* SPI Helpers */
 
 static uint32_t s32k1xx_lpspi_dequeue(struct s32k1xx_lpspidev_s *priv);
-static void     s32k1xx_lpspi_setmode(struct s32k1xx_lpspidev_s *priv,
-                                      enum spi_slave_mode_e mode);
-static void     s32k1xx_lpspi_setbits(struct s32k1xx_lpspidev_s *priv,
-                                      int nbits);
+static void     s32k1xx_lpspi_setTCR(struct s32k1xx_lpspidev_s *priv, 
+                                     enum spi_slave_mode_e mode,
+                                     uint16_t nbits, uint8_t PCSpin);
 
 /* SPI slave controller methods */
 
@@ -267,140 +266,128 @@ static void s32k1xx_lpspi_dumpregs(struct s32k1xx_lpspidev_s *priv, const char *
 #endif
 
 /****************************************************************************
- * Name: s32k1xx_lpspi_setmode
+ * Name: s32k1xx_lpspi_setTCR
  *
  * Description:
- *   Set the SPI Slave mode.
+ *   Set SPI mode, Peripheral Chip Select pin, Frame Size and other option
+ *   include Clock prescale, LSB first, Byte swap, etc. according to the
+ *   Transmit Command Register(TCR) specified in the datasheet. This function 
+ *   will force put 32 bits register in single time to avoid register reading
+ *   problems accour from reading register while the register is loading from 
+ *   FIFO.
  *
  * Input Parameters:
- *   ctrlr - SPI Slave controller interface instance
- *   mode  - Requested SPI Slave mode
+ *   ctrlr  - SPI Slave controller interface instance
+ *   mode   - Requested SPI Slave mode
+ *   nbits  - The number of bits in an SPI word
+ *   PCSpin - Peripheral Chip Select Pin
  *
  * Returned Value:
  *   None.
  *
  ****************************************************************************/
 
-static void s32k1xx_lpspi_setmode(struct s32k1xx_lpspidev_s *priv,
-                                  enum spi_slave_mode_e mode)
+static void s32k1xx_lpspi_setTCR(struct s32k1xx_lpspidev_s *priv, 
+                                 enum spi_slave_mode_e mode,
+                                 uint16_t nbits, uint8_t PCSpin)
 {
-  uint32_t setbits;
-  uint32_t clrbits;
+  uint32_t setbits = 0;
   uint32_t men;
 
-  spiinfo("mode=%d\n", mode);
+  spiinfo("mode=%d \tndits=%d \tPCSpin=%d \n", mode, nbits, PCSpin);
+  
+  /* Disable LPSPI if it is enabled */
 
+  men = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CR_OFFSET) & LPSPI_CR_MEN;
+  if (men)
+    {
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_MEN, 0);
+    }
+  
   /* Has the mode changed? */
 
   if (mode != priv->mode)
     {
-      /* Disable LPSPI if it is enabled */
-
-      men = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CR_OFFSET) & LPSPI_CR_MEN;
-      if (men)
-        {
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_MEN, 0);
-        }
-
       switch (mode)
         {
         case SPIDEV_MODE0:     /* CPOL=0; CPHA=0 */
-          setbits = 0;
-          clrbits = LPSPI_TCR_CPOL | LPSPI_TCR_CPHA;
+          /* nothing to set here */
           break;
 
         case SPIDEV_MODE1:     /* CPOL=0; CPHA=1 */
-          setbits = LPSPI_TCR_CPHA;
-          clrbits = LPSPI_TCR_CPOL;
+          /* set CPHA */
+          setbits |= LPSPI_TCR_CPHA;
           break;
 
         case SPIDEV_MODE2:     /* CPOL=1; CPHA=0 */
-          setbits = LPSPI_TCR_CPOL;
-          clrbits = LPSPI_TCR_CPHA;
+          /* set CPOL */
+          setbits |= LPSPI_TCR_CPOL;
           break;
 
         case SPIDEV_MODE3:     /* CPOL=1; CPHA=1 */
-          setbits = LPSPI_TCR_CPOL | LPSPI_TCR_CPHA;
-          clrbits = 0;
+          setbits |= (LPSPI_TCR_CPOL | LPSPI_TCR_CPHA);
           break;
 
         default:
           spierr("Invalid mode: %d\n", mode);
           DEBUGPANIC();
-          return;
+          break;
         }
-
-      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, clrbits, setbits);
 
       /* Save the mode so that subsequent re-configurations will be faster */
-
+      
       priv->mode = mode;
-
-      /* Re-enable LPSPI if it was enabled previously */
-
-      if (men)
-        {
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_MEN);
-        }
-
     }
-}
-
-/****************************************************************************
- * Name: s32k1xx_lpspi_setbits
- *
- * Description:
- *   Set the number of bits per word.
- *
- * Input Parameters:
- *   ctrlr - SPI Slave controller interface instance
- *   nbits - The number of bits in an SPI word
- *
- * Returned Value:
- *   None.
- *
- ****************************************************************************/
-
-static void     s32k1xx_lpspi_setbits(struct s32k1xx_lpspidev_s *priv,
-                                      int nbits)
-{
-  uint32_t men;
-
-  spiinfo("nbits=%d\n", nbits);
 
   /* Has the number of bits changed? */
 
   if (nbits != priv->nbits)
     {
-      if (nbits < 2 || nbits > 4096)
+
+      /* Is the frame size in range 12 bit + 1 */
+
+      if (nbits >= 2 || nbits <= 4096)
         {
-          return;
+          setbits |= LPSPI_TCR_FRAMESZ(nbits - 1);
+          
+          /* Save the selection so that subsequent re-configurations will
+          * be faster.
+          */
+
+          priv->nbits = nbits;    /* nbits has been clobbered... save the signed
+                                   * value. */
         }
+        else
+          {
+            spierr("Invalid nbits: %d\n", nbits);
+          }
+    }
 
-      /* Disable LPSPI if it is enabled */
+  /* Has the PCS pin changed? */
 
-      men = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CR_OFFSET) & LPSPI_CR_MEN;
-      if (men)
+  if (PCSpin != priv->PCSpin)
+    {
+
+      /* PCSpin should be 0,1,2,3 */
+
+      if (PCSpin < 4)
         {
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_MEN, 0);
+          setbits |= LPSPI_TCR_PCS(PCSpin);
+          priv->PCSpin = PCSpin;    /* Save PCSpin config for faster configure */
         }
-
-      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, 
-                                LPSPI_TCR_FRAMESZ_MASK, LPSPI_TCR_FRAMESZ(nbits - 1));
-
-      /* Save the selection so that subsequent re-configurations will
-       * be faster.
-       */
-
-      priv->nbits = nbits;    /* nbits has been clobbered... save the signed
-                               * value. */
-
-      /* Re-enable LPSPI if it was enabled previously */
-
-      if (men)
+      else
         {
-          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_MEN);
+          spierr("Invalid PCS pin: %d\n", PCSpin);
         }
+    }
+
+  s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, setbits);
+
+  /* Re-enable LPSPI if it was enabled previously */
+
+  if (men)
+    {
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_MEN);
     }
 }
 
@@ -701,6 +688,8 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
       ier     = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_IER_OFFSET);
       pending = sr & ier;
 
+      spiinfo("SR reg: %08" PRIX32 "\tIER reg: %08" PRIX32 "\n", sr, ier);
+
       /* Return from the interrupt handler when all pending interrupts have
        * been processed.
        */
@@ -772,6 +761,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
            */
 
           regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_RDR_OFFSET);
+          
           data   = (uint32_t)
             ((regval & LPSPI_RDR_DATA_MASK) >> LPSPI_RDR_DATA_SHIFT);
           
@@ -780,14 +770,24 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
           SPIS_DEV_RECEIVE(priv->dev, (const uint32_t *)&data,
                            sizeof(data));
 
+          spiinfo("RDR1 reg: %04" PRIX32 "\n", regval);
+
           if (priv->nbits > 32)
             {
+              /* Wait until next word is ready */
+
+              while((s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_SR_OFFSET) & \
+                     LPSPI_SR_RDF) != LPSPI_SR_RDF);
+
               regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_RDR_OFFSET);
+              
               data1  = (uint32_t)
                 ((regval & LPSPI_RDR_DATA_MASK) >> LPSPI_RDR_DATA_SHIFT);
               
               SPIS_DEV_RECEIVE(priv->dev, (const uint32_t *)&data1,
                                sizeof(data1));
+
+              spiinfo("RDR2 reg: %04" PRIX32 "\n", regval);
             }
         }
 
@@ -844,6 +844,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
            */
 
           regval = s32k1xx_lpspi_dequeue(priv);
+
           s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
 
           if (priv->nbits > 32)
@@ -863,7 +864,12 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
           /* Disable further TEF/TDF interrupts */
 
           s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_IER_OFFSET,
-                                    LPSPI_IER_TEIE | LPSPI_IER_TDIE | LPSPI_IER_FCIE, 0);
+                                    LPSPI_IER_TEIE | LPSPI_IER_TDIE, 0);
+
+          /* cleared Frame Complete Flag (FCF) flag */
+
+          s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_SR_OFFSET,
+                                    0, LPSPI_SR_FCF);
 
           /* Report the state change to the SPI device driver */
 
@@ -911,7 +917,7 @@ static void s32k1xx_lpspi_bind(struct spi_slave_ctrlr_s *ctrlr,
   int ret;
   const void *data;
 
-  spiinfo("dev=%p mode=%d nbits=%d\n", dev, mode, nbits);
+  spiinfo("blinding dev=%p\n", dev);
 
   DEBUGASSERT(priv != NULL && priv->dev == NULL && dev != NULL);
 
@@ -962,9 +968,13 @@ static void s32k1xx_lpspi_bind(struct spi_slave_ctrlr_s *ctrlr,
   s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, priv->outval);
 
   /* Setup to begin normal SPI operation */
+  
+  /* Noted SPI mode and nbits will be set in s32k1xx_spi_slave_initialize 
+   * function to avoid register reading problems in TCR
+   */
 
-  s32k1xx_lpspi_setmode(priv, mode);
-  s32k1xx_lpspi_setbits(priv, nbits);
+  // s32k1xx_lpspi_setmode(priv, mode);
+  // s32k1xx_lpspi_setbits(priv, nbits);
 
   /* Clear pending interrupts */
 
@@ -1038,12 +1048,15 @@ static void s32k1xx_lpspi_unbind(struct spi_slave_ctrlr_s *ctrlr)
 
   /* Disable the SPI peripheral */
 
-  s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, ~LPSPI_CR_MEN);
+  s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_MEN, 0);
 
   /* Execute a software reset of the SPI (twice) */
 
-  s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_RST);
-  s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_RST);
+  s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_RST |
+                         LPSPI_CR_RRF | LPSPI_CR_RTF);
+  s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_RST |
+                         LPSPI_CR_RRF | LPSPI_CR_RTF);
+  s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0);
 
   nxmutex_unlock(&priv->spilock);
 }
@@ -1113,10 +1126,10 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
       s32k1xx_pinconfig(PIN_LPSPI2_SCK);  /* Drives slave */
       s32k1xx_pinconfig(PIN_LPSPI2_PCS);
 
-      /* Select PCS pin LPSPI_PCS[3] (PIN_LPSPI2_PCS0_4) */
+      /* Set Transmit Command Register */
 
-      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, 0, LPSPI_TCR_PCS_3);
-
+      s32k1xx_lpspi_setTCR(priv, CONFIG_SPI_SLAVE_DRIVER_MODE, 40, 0);
+      
       leave_critical_section(flags);
 
       /* Set water masks */
@@ -1126,10 +1139,6 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_FCR_OFFSET, 
                                 LPSPI_FCR_RXWATER_MASK, LPSPI_FCR_RXWATER(1));
 
-      /* Set Transmit Command Register */
-      
-      s32k1xx_lpspi_setbits(priv,8);
-      s32k1xx_lpspi_setmode(priv, CONFIG_SPI_SLAVE_DRIVER_MODE);
       
       /* Disable all SPI interrupts at the SPI peripheral */
 

@@ -284,7 +284,6 @@ static ssize_t spi_slave_read(FAR struct file *filep, FAR char *buffer,
   FAR struct inode *inode;
   FAR struct spi_slave_driver_s *priv;
   size_t read_bytes;
-  // size_t remaining_words;
 
   spiinfo("filep=%p buffer=%p buflen=%zu\n", filep, buffer, buflen);
 
@@ -299,7 +298,6 @@ static ssize_t spi_slave_read(FAR struct file *filep, FAR char *buffer,
       return -ENOBUFS;
     }
 
-  priv->rx_length = MIN(buflen, sizeof(priv->rx_buffer));
   // remaining_words = SPIS_CTRLR_QPOLL(priv->ctrlr);
   // if (remaining_words == 0)
   //   {
@@ -313,6 +311,8 @@ static ssize_t spi_slave_read(FAR struct file *filep, FAR char *buffer,
   read_bytes = MIN(buflen, priv->rx_length);
 
   memcpy(buffer, priv->rx_buffer, read_bytes);
+
+  priv->rx_length = 0;
 
   return (ssize_t)read_bytes;
 }
@@ -553,11 +553,14 @@ static size_t spi_slave_receive(FAR struct spi_slave_dev_s *dev,
                                 FAR const void *data, size_t len)
 {
   FAR struct spi_slave_driver_s *priv = (FAR struct spi_slave_driver_s *)dev;
-  size_t recv_bytes = MIN(len, priv->rx_length);
 
-  memcpy(priv->rx_buffer, data, recv_bytes);
+  /* determine writable data size by calculate remaining buffer space */
 
-  priv->rx_length = recv_bytes;
+  size_t recv_bytes = MIN(len, CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE - priv->rx_length);
+
+  memcpy(priv->rx_buffer + priv->rx_length, data, recv_bytes);
+
+  priv->rx_length += recv_bytes;
 
   return BYTES2WORDS(recv_bytes);
 }
@@ -633,8 +636,7 @@ int spi_slave_register(FAR struct spi_slave_ctrlr_s *ctrlr, int bus)
     }
 
   SPIS_CTRLR_BIND(priv->ctrlr, (FAR struct spi_slave_dev_s *)priv,
-                  CONFIG_SPI_SLAVE_DRIVER_MODE,
-                  8);
+                  0, 0);
 
   spiinfo("SPI Slave driver loaded successfully!\n");
 

@@ -1890,10 +1890,6 @@ static void s32k1xx_lpspi_bus_initialize(struct s32k1xx_lpspidev_s *priv)
 
   /* TODO: Not needed for now */
 
-  /* Enable BYSW */
-
-  s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, 0, LPSPI_TCR_BYSW);
-
   /* Set Configuration Register 1 related setting. */
 
   reg = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET);

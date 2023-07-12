@@ -102,7 +102,8 @@ struct s32k1xx_lpspidev_s
   uint32_t outval;             /* Default shift-out value */
   uint16_t irq;                /* SPI IRQ number */
   uint8_t mode;                /* Mode 0,1,2,3 */
-  uint8_t nbits;               /* Width of word in bits (8 to 16) */
+  uint16_t nbits;              /* Width of word in bits (2 to 4096) */
+  uint8_t PCSpin;              /* Peripheral Chip Select Pin 0,1,2,3 */
   bool initialized;            /* True: Controller has been initialized */
   bool nss;                    /* True: Chip selected */
 
@@ -113,14 +114,6 @@ struct s32k1xx_lpspidev_s
 
   uint32_t outq[CONFIG_SPI_SLAVE_QSIZE];
 
-  /* Debug stuff */
-
-#ifdef CONFIG_S32K1XX_SPI_REGDEBUG
-  bool     wrlast;             /* Last was a write */
-  uint32_t addresslast;        /* Last address */
-  uint32_t valuelast;          /* Last value */
-  int      ntimes;             /* Number of times */
-#endif
 };
 
 /****************************************************************************
