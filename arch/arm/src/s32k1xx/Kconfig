@@ -628,16 +628,62 @@ config S32K1XX_EDMA_EDBG
 
 endmenu # eDMA Global Configuration
 
-menu "LPUART Configuration"
-	depends on S32K1XX_LPUART
-
-config S32K1XX_LPUART_INVERT
-	bool "Signal Invert Support"
-	default n
-endmenu
-
 menu "LPSPI Configuration"
 	depends on S32K1XX_LPSPI
+
+choice
+	prompt "LPSPI0 Configuration"
+	default S32K1XX_LPSPI0_MASTER
+	depends on S32K1XX_LPSPI0
+
+config S32K1XX_LPSPI0_MASTER
+	bool "Master"
+	---help---
+		Configure LPSPI0 as an SPI master driver.  Default: Master
+
+config S32K1XX_LPSPI0_SLAVE
+	bool "Slave"
+	select SPI_SLAVE
+	---help---
+		Configure LPSPI0 as an SPI slave driver.  Default: Master
+
+endchoice # LPSPI0 Configuration
+
+choice
+	prompt "LPSPI1 Configuration"
+	default S32K1XX_LPSPI1_MASTER
+	depends on S32K1XX_LPSPI1
+
+config S32K1XX_LPSPI1_MASTER
+	bool "Master"
+	---help---
+		Configure SPI1 as an SPI master driver.  Default: Master
+
+config S32K1XX_LPSPI1_SLAVE
+	bool "Slave"
+	select SPI_SLAVE
+	---help---
+		Configure SPI1 as an SPI slave driver.  Default: Master
+
+endchoice # LPSPI1 Configuration
+
+choice
+	prompt "LPSPI2 Configuration"
+	default S32K1XX_LPSPI2_MASTER
+	depends on S32K1XX_LPSPI2
+
+config S32K1XX_LPSPI2_MASTER
+	bool "Master"
+	---help---
+		Configure SPI1 as an SPI master driver.  Default: Master
+
+config S32K1XX_LPSPI2_SLAVE
+	bool "Slave"
+	select SPI_SLAVE
+	---help---
+		Configure SPI1 as an SPI slave driver.  Default: Master
+
+endchoice # LPSPI2 Configuration
 
 config S32K1XX_LPSPI_DWORD
 	bool "DWORD up to 64 bit transfer support"
@@ -821,6 +867,10 @@ endmenu # LPI2C Configuration
 menu "LPUART Configuration"
 comment "LP Uart Driver Configuration"
 
+config S32K1XX_LPUART_INVERT
+	bool "Signal Invert Support"
+	depends on S32K1XX_LPUART
+	default n
 
 config S32K1XX_LPUART_RXDMA_BUFFER_SIZE
 	int "Rx DMA buffer size"

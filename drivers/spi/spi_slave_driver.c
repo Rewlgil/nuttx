@@ -558,6 +558,11 @@ static size_t spi_slave_receive(FAR struct spi_slave_dev_s *dev,
 
   size_t recv_bytes = MIN(len, CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE - priv->rx_length);
 
+  if (recv_bytes < len) 
+    {
+      spiwarn("SPI recieve driver FIFO is full");
+    }
+
   memcpy(priv->rx_buffer + priv->rx_length, data, recv_bytes);
 
   priv->rx_length += recv_bytes;
@@ -636,7 +641,8 @@ int spi_slave_register(FAR struct spi_slave_ctrlr_s *ctrlr, int bus)
     }
 
   SPIS_CTRLR_BIND(priv->ctrlr, (FAR struct spi_slave_dev_s *)priv,
-                  0, 0);
+                  CONFIG_SPI_SLAVE_DRIVER_MODE, 
+                  CONFIG_SPI_SLAVE_DRIVER_FRAME_SIZE);
 
   spiinfo("SPI Slave driver loaded successfully!\n");
 

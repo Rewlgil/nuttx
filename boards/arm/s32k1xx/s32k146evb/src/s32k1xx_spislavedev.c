@@ -42,9 +42,6 @@
 
 #include "s32k146evb.h"
 
-
-// #ifdef CONFIG_S32K1XX_LPSPI
-
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -55,39 +52,95 @@
  * Description:
  *   Initialize SPI Slave driver and register the /dev/spislv device.
  *
- * Input Parameters:
- *   bus - The SPI bus number, used to build the device path as /dev/spislvN
- *
  * Returned Value:
  *   Zero (OK) is returned on success; A negated errno value is returned
  *   to indicate the nature of any failure.
  *
  ****************************************************************************/
 
-int s32k1xx_spi_slave_dev_initialize(int bus)
+int s32k1xx_spislavedev_initialize(void)
 {
-  int ret;
+  int ret = -ENODEV;
 
-  struct spi_slave_ctrlr_s *ctrlr;
+#ifdef CONFIG_S32K1XX_LPSPI0_SLAVE
+  struct spi_slave_ctrlr_s *ctrlr0;
 
-  spiinfo("Initializing /dev/spislv%d...\n", bus);
+  spiinfo("Initializing /dev/spislv%d...\n", 0);
 
   /* Initialize SPI Slave controller device */
 
-  ctrlr = s32k1xx_spi_slave_initialize(bus);
-  if (ctrlr == NULL)
+  ctrlr0 = s32k1xx_spi_slave_initialize(0);
+  if (ctrlr0 == NULL)
     {
-      spierr("Failed to initialize SPI%d as slave.\n", bus);
+      spierr("Failed to initialize SPI%d as slave.\n", 0);
       return -ENODEV;
     }
 
-  ret = spi_slave_register(ctrlr, bus);
+  #ifdef CONFIG_SPI_SLAVE_DRIVER
+
+  ret = spi_slave_register(ctrlr0, 0);
   if (ret < 0)
     {
-      spierr("Failed to register /dev/spislv%d: %d\n", bus, ret);
+      spierr("Failed to register /dev/spislv%d: %d\n", 0, ret);
     }
+
+  #endif /* CONFIG_SPI_SLAVE_DRIVER */
+
+#endif /* CONFIG_S32K1XX_LPSPI0_SLAVE */
+
+#ifdef CONFIG_S32K1XX_LPSPI1_SLAVE
+
+  struct spi_slave_ctrlr_s *ctrlr1;
+
+  spiinfo("Initializing /dev/spislv%d...\n", 1);
+
+  /* Initialize SPI Slave controller device */
+
+  ctrlr1 = s32k1xx_spi_slave_initialize(1);
+  if (ctrlr1 == NULL)
+    {
+      spierr("Failed to initialize SPI%d as slave.\n", 1);
+      return -ENODEV;
+    }
+
+  #ifdef CONFIG_SPI_SLAVE_DRIVER
+
+  ret = spi_slave_register(ctrlr1, 1);
+  if (ret < 0)
+    {
+      spierr("Failed to register /dev/spislv%d: %d\n", 1, ret);
+    }
+
+  #endif /* CONFIG_SPI_SLAVE_DRIVER */
+
+#endif /* CONFIG_S32K1XX_LPSPI1_SLAVE */
+
+#ifdef CONFIG_S32K1XX_LPSPI2_SLAVE
+
+  struct spi_slave_ctrlr_s *ctrlr2;
+
+  spiinfo("Initializing /dev/spislv%d...\n", 2);
+
+  /* Initialize SPI Slave controller device */
+
+  ctrlr2 = s32k1xx_spi_slave_initialize(2);
+  if (ctrlr2 == NULL)
+    {
+      spierr("Failed to initialize SPI%d as slave.\n", 2);
+      return -ENODEV;
+    }
+
+  #ifdef CONFIG_SPI_SLAVE_DRIVER
+
+  ret = spi_slave_register(ctrlr2, 2);
+  if (ret < 0)
+    {
+      spierr("Failed to register /dev/spislv%d: %d\n", 2, ret);
+    }
+
+  #endif /* CONFIG_SPI_SLAVE_DRIVER */
+
+#endif /* CONFIG_S32K1XX_LPSPI2_SLAVE */
 
   return ret;
 }
-
-// #endif

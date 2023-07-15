@@ -136,7 +136,8 @@ static void     s32k1xx_lpspi_qflush(struct spi_slave_ctrlr_s *ctrlr);
 
 /* SPI slave controller driver operations */
 
-static const struct spi_slave_ctrlrops_s g_ctrlr_ops =
+#ifdef CONFIG_S32K1XX_LPSPI0_SLAVE
+static const struct spi_slave_ctrlrops_s g_spi0_slave_ctrlr_ops =
 {
   .bind    = s32k1xx_lpspi_bind,
   .unbind  = s32k1xx_lpspi_unbind,
@@ -145,19 +146,70 @@ static const struct spi_slave_ctrlrops_s g_ctrlr_ops =
   .qflush  = s32k1xx_lpspi_qflush,
 };
 
-static struct s32k1xx_lpspidev_s g_spi2_ctrlr =
+static struct s32k1xx_lpspidev_s g_spi0_slave_ctrlr =
 {
   .ctrlr   =
   {
-    .ops   = &g_ctrlr_ops,
+    .ops   = &g_spi0_slave_ctrlr_ops,
+  },
+  .base    = S32K1XX_LPSPI0_BASE,
+  .spilock = NXMUTEX_INITIALIZER,
+  .irq     = S32K1XX_IRQ_LPSPI0,
+  .nbits   = CONFIG_SPI_SLAVE_DRIVER_FRAME_SIZE,
+  .nss     = true,
+  .initialized = false,
+};
+#endif
+
+#ifdef CONFIG_S32K1XX_LPSPI1_SLAVE
+static const struct spi_slave_ctrlrops_s g_spi1_slave_ctrlr_ops =
+{
+  .bind    = s32k1xx_lpspi_bind,
+  .unbind  = s32k1xx_lpspi_unbind,
+  .enqueue = s32k1xx_lpspi_enqueue,
+  .qfull   = s32k1xx_lpspi_qfull,
+  .qflush  = s32k1xx_lpspi_qflush,
+};
+
+static struct s32k1xx_lpspidev_s g_spi1_slave_ctrlr =
+{
+  .ctrlr   =
+  {
+    .ops   = &g_spi1_slave_ctrlr_ops,
+  },
+  .base    = S32K1XX_LPSPI1_BASE,
+  .spilock = NXMUTEX_INITIALIZER,
+  .irq     = S32K1XX_IRQ_LPSPI1,
+  .nbits   = CONFIG_SPI_SLAVE_DRIVER_FRAME_SIZE,
+  .nss     = true,
+  .initialized = false,
+};
+#endif
+
+#ifdef CONFIG_S32K1XX_LPSPI2_SLAVE
+static const struct spi_slave_ctrlrops_s g_spi2_slave_ctrlr_ops =
+{
+  .bind    = s32k1xx_lpspi_bind,
+  .unbind  = s32k1xx_lpspi_unbind,
+  .enqueue = s32k1xx_lpspi_enqueue,
+  .qfull   = s32k1xx_lpspi_qfull,
+  .qflush  = s32k1xx_lpspi_qflush,
+};
+
+static struct s32k1xx_lpspidev_s g_spi2_slave_ctrlr =
+{
+  .ctrlr   =
+  {
+    .ops   = &g_spi2_slave_ctrlr_ops,
   },
   .base    = S32K1XX_LPSPI2_BASE,
   .spilock = NXMUTEX_INITIALIZER,
   .irq     = S32K1XX_IRQ_LPSPI2,
-  .nbits   = 32,
+  .nbits   = CONFIG_SPI_SLAVE_DRIVER_FRAME_SIZE,
   .nss     = true,
   .initialized = false,
 };
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -304,27 +356,27 @@ static void s32k1xx_lpspi_setTCR(struct s32k1xx_lpspidev_s *priv,
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, LPSPI_CR_MEN, 0);
     }
   
-  /* Has the mode changed? */
+  /* Has the mode changed or first initialize? */
 
-  if (mode != priv->mode)
+  if (mode != priv->mode || !priv->initialized)
     {
       switch (mode)
         {
-        case SPIDEV_MODE0:     /* CPOL=0; CPHA=0 */
+        case SPISLAVE_MODE0:     /* CPOL=0; CPHA=0 */
           /* nothing to set here */
           break;
 
-        case SPIDEV_MODE1:     /* CPOL=0; CPHA=1 */
+        case SPISLAVE_MODE1:     /* CPOL=0; CPHA=1 */
           /* set CPHA */
           setbits |= LPSPI_TCR_CPHA;
           break;
 
-        case SPIDEV_MODE2:     /* CPOL=1; CPHA=0 */
+        case SPISLAVE_MODE2:     /* CPOL=1; CPHA=0 */
           /* set CPOL */
           setbits |= LPSPI_TCR_CPOL;
           break;
 
-        case SPIDEV_MODE3:     /* CPOL=1; CPHA=1 */
+        case SPISLAVE_MODE3:     /* CPOL=1; CPHA=1 */
           setbits |= (LPSPI_TCR_CPOL | LPSPI_TCR_CPHA);
           break;
 
@@ -339,16 +391,16 @@ static void s32k1xx_lpspi_setTCR(struct s32k1xx_lpspidev_s *priv,
       priv->mode = mode;
     }
 
-  /* Has the number of bits changed? */
+  /* Has the number of bits changed or first initialize? */
 
-  if (nbits != priv->nbits)
+  if (nbits != priv->nbits || !priv->initialized)
     {
 
       /* Is the frame size in range 12 bit + 1 */
 
       if (nbits >= 2 || nbits <= 4096)
         {
-          setbits |= LPSPI_TCR_FRAMESZ(nbits - 1);
+          setbits |= LPSPI_TCR_FRAMESZ((uint32_t)nbits - 1);
           
           /* Save the selection so that subsequent re-configurations will
           * be faster.
@@ -363,16 +415,16 @@ static void s32k1xx_lpspi_setTCR(struct s32k1xx_lpspidev_s *priv,
           }
     }
 
-  /* Has the PCS pin changed? */
+  /* Has the PCS pin changed or first initialize? */
 
-  if (PCSpin != priv->PCSpin)
+  if (PCSpin != priv->PCSpin || !priv->initialized)
     {
 
       /* PCSpin should be 0,1,2,3 */
 
       if (PCSpin < 4)
         {
-          setbits |= LPSPI_TCR_PCS(PCSpin);
+          setbits |= LPSPI_TCR_PCS((uint32_t)PCSpin);
           priv->PCSpin = PCSpin;    /* Save PCSpin config for faster configure */
         }
       else
@@ -381,6 +433,7 @@ static void s32k1xx_lpspi_setTCR(struct s32k1xx_lpspidev_s *priv,
         }
     }
 
+  spiinfo("set TCR: %08" PRIX32 "\n", setbits);
   s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TCR_OFFSET, setbits);
 
   /* Re-enable LPSPI if it was enabled previously */
@@ -689,6 +742,9 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
       pending = sr & ier;
 
       spiinfo("SR reg: %08" PRIX32 "\tIER reg: %08" PRIX32 "\n", sr, ier);
+      
+      regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_TCR_OFFSET);
+      spiinfo("RX count: %d\tTX count: %d\n", (regval >> 16) & 7, regval & 7);
 
       /* Return from the interrupt handler when all pending interrupts have
        * been processed.
@@ -718,7 +774,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
       if ((pending & LPSPI_SR_REF) != 0)
         {
-          spierr("ERROR: RX FIFO overflows: %08x\n", pending);
+          spierr("ERROR: RX FIFO overflows: %08" PRIX32 "\n", pending);
 
           /* End the transfer by clear the interrupt flag and reset FIFO */
 
@@ -744,7 +800,6 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
       if ((pending & LPSPI_SR_RDF) != 0)
         {
           uint32_t data;
-          uint32_t data1;
 
           /* We get no indication of the falling edge of NSS. But if we are
            * here then it must have fallen.
@@ -770,25 +825,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
           SPIS_DEV_RECEIVE(priv->dev, (const uint32_t *)&data,
                            sizeof(data));
 
-          spiinfo("RDR1 reg: %04" PRIX32 "\n", regval);
-
-          if (priv->nbits > 32)
-            {
-              /* Wait until next word is ready */
-
-              while((s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_SR_OFFSET) & \
-                     LPSPI_SR_RDF) != LPSPI_SR_RDF);
-
-              regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_RDR_OFFSET);
-              
-              data1  = (uint32_t)
-                ((regval & LPSPI_RDR_DATA_MASK) >> LPSPI_RDR_DATA_SHIFT);
-              
-              SPIS_DEV_RECEIVE(priv->dev, (const uint32_t *)&data1,
-                               sizeof(data1));
-
-              spiinfo("RDR2 reg: %04" PRIX32 "\n", regval);
-            }
+          spiinfo("RDR reg: %04" PRIX32 "\n", regval);
         }
 
       /* When a transfer starts, the data shifted out is the data present
@@ -817,7 +854,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
       if ((pending & LPSPI_SR_TEF) != 0)
         {
-          spierr("ERROR: Underrun (UNDEX): %08x\n", pending);
+          spierr("ERROR: Underrun (UNDEX): %08" PRIX32 "\n", pending);
           
           /* End the transfer by clear the interrupt flag */
 
@@ -847,11 +884,6 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
           s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
 
-          if (priv->nbits > 32)
-            {
-              regval = s32k1xx_lpspi_dequeue(priv);
-              s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
-            }
         }
 
       /* The SPI slave hardware provides only an event when NSS rises
@@ -1090,8 +1122,25 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
   DEBUGASSERT(bus >= 0 && bus <= 2);
 
   /* Select SPI2 */
-
-  priv = &g_spi2_ctrlr;
+  
+  #ifdef CONFIG_S32K1XX_LPSPI0_SLAVE
+  if (bus == 0) 
+    {
+      priv = &g_spi0_slave_ctrlr;
+    }
+  #endif
+  #ifdef CONFIG_S32K1XX_LPSPI1_SLAVE
+  if (bus == 1)
+    {
+      priv = &g_spi1_slave_ctrlr;
+    }
+  #endif
+  #ifdef CONFIG_S32K1XX_LPSPI2_SLAVE
+  if (bus == 2)
+    {
+      priv = &g_spi2_slave_ctrlr;
+    }
+  #endif
 
   /* Has the SPI hardware been initialized? */
 
@@ -1113,24 +1162,100 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
 
       /* Configure LPSPI in slave mode */
 
-      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET, LPSPI_CFGR1_MASTER, 0);
-      
-      /* Enable peripheral clocking to SPI2 */
+      s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET, 
+                                LPSPI_CFGR1_MASTER, 0);
 
-      s32k1xx_pclk_enable(LPSPI2_CLK, true);
+      #ifdef CONFIG_S32K1XX_LPSPI0_SLAVE
+      if (bus == 0) 
+        {
+          /* Enable peripheral clocking to SPI0 */
 
-      /* Configure multiplexed pins as connected on the board. */
+          s32k1xx_pclk_enable(LPSPI0_CLK, true);
 
-      s32k1xx_pinconfig(PIN_LPSPI2_MISO); /* Output */
-      s32k1xx_pinconfig(PIN_LPSPI2_MOSI); /* Input */
-      s32k1xx_pinconfig(PIN_LPSPI2_SCK);  /* Drives slave */
-      s32k1xx_pinconfig(PIN_LPSPI2_PCS);
+          /* Configure multiplexed pins as connected on the board. */
 
-      /* Set Transmit Command Register */
+          s32k1xx_pinconfig(PIN_LPSPI0_MISO); /* Output */
+          s32k1xx_pinconfig(PIN_LPSPI0_MOSI); /* Input */
+          s32k1xx_pinconfig(PIN_LPSPI0_SCK);  /* Drives slave */
+          s32k1xx_pinconfig(PIN_LPSPI0_PCS);
 
-      s32k1xx_lpspi_setTCR(priv, CONFIG_SPI_SLAVE_DRIVER_MODE, 40, 0);
-      
-      leave_critical_section(flags);
+          if ((PIN_LPSPI0_PCS == PIN_LPSPI0_PCS0_1) ||  
+              (PIN_LPSPI0_PCS == PIN_LPSPI0_PCS0_2) || 
+              (PIN_LPSPI0_PCS == PIN_LPSPI0_PCS0_3))
+            priv->PCSpin = 0;
+          
+          else if ((PIN_LPSPI0_PCS == PIN_LPSPI0_PCS1_1) || 
+                   (PIN_LPSPI0_PCS == PIN_LPSPI0_PCS1_2))
+            priv->PCSpin = 1;
+          
+          else if (PIN_LPSPI0_PCS == PIN_LPSPI0_PCS2)
+            priv->PCSpin = 2;
+          
+          else if (PIN_LPSPI0_PCS == PIN_LPSPI0_PCS3)
+            priv->PCSpin = 3;
+        }
+      #endif
+      #ifdef CONFIG_S32K1XX_LPSPI1_SLAVE
+      if (bus == 1)
+        {
+          /* Enable peripheral clocking to SPI1 */
+
+          s32k1xx_pclk_enable(LPSPI1_CLK, true);
+
+          /* Configure multiplexed pins as connected on the board. */
+
+          s32k1xx_pinconfig(PIN_LPSPI1_MISO); /* Output */
+          s32k1xx_pinconfig(PIN_LPSPI1_MOSI); /* Input */
+          s32k1xx_pinconfig(PIN_LPSPI1_SCK);  /* Drives slave */
+          s32k1xx_pinconfig(PIN_LPSPI1_PCS);
+
+          if ((PIN_LPSPI1_PCS == PIN_LPSPI1_PCS0_1) || 
+              (PIN_LPSPI1_PCS == PIN_LPSPI1_PCS0_2) || 
+              (PIN_LPSPI1_PCS == PIN_LPSPI1_PCS0_3))
+            priv->PCSpin = 0;
+          
+          else if ((PIN_LPSPI1_PCS == PIN_LPSPI1_PCS1_1) || 
+                   (PIN_LPSPI1_PCS == PIN_LPSPI1_PCS1_2))
+            priv->PCSpin = 1;
+          
+          else if (PIN_LPSPI1_PCS == PIN_LPSPI1_PCS2)
+            priv->PCSpin = 2;
+          
+          else if (PIN_LPSPI1_PCS == PIN_LPSPI1_PCS3)
+            priv->PCSpin = 3;
+        }
+      #endif
+      #ifdef CONFIG_S32K1XX_LPSPI2_SLAVE
+      if (bus == 2)
+        {
+          /* Enable peripheral clocking to SPI2 */
+
+          s32k1xx_pclk_enable(LPSPI2_CLK, true);
+
+          /* Configure multiplexed pins as connected on the board. */
+
+          s32k1xx_pinconfig(PIN_LPSPI2_MISO); /* Output */
+          s32k1xx_pinconfig(PIN_LPSPI2_MOSI); /* Input */
+          s32k1xx_pinconfig(PIN_LPSPI2_SCK);  /* Drives slave */
+          s32k1xx_pinconfig(PIN_LPSPI2_PCS);
+
+          if ((PIN_LPSPI2_PCS == PIN_LPSPI2_PCS0_1) || 
+              (PIN_LPSPI2_PCS == PIN_LPSPI2_PCS0_2) || 
+              (PIN_LPSPI2_PCS == PIN_LPSPI2_PCS0_3) || 
+              (PIN_LPSPI2_PCS == PIN_LPSPI2_PCS0_4))
+            priv->PCSpin = 0;
+          
+          else if ((PIN_LPSPI2_PCS == PIN_LPSPI2_PCS1_1) || 
+                   (PIN_LPSPI2_PCS == PIN_LPSPI2_PCS1_2))
+            priv->PCSpin = 1;
+          
+          else if (PIN_LPSPI2_PCS == PIN_LPSPI2_PCS2)
+            priv->PCSpin = 2;
+          
+          else if (PIN_LPSPI2_PCS == PIN_LPSPI2_PCS3)
+            priv->PCSpin = 3;
+        }
+      #endif
 
       /* Set water masks */
 
@@ -1138,7 +1263,12 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
                                 LPSPI_FCR_TXWATER_MASK, LPSPI_FCR_TXWATER(3));
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_FCR_OFFSET, 
                                 LPSPI_FCR_RXWATER_MASK, LPSPI_FCR_RXWATER(1));
+      
+      /* Set Transmit Command Register */
 
+      s32k1xx_lpspi_setTCR(priv, CONFIG_SPI_SLAVE_DRIVER_MODE, 
+                           CONFIG_SPI_SLAVE_DRIVER_FRAME_SIZE, 
+                           priv->PCSpin);
       
       /* Disable all SPI interrupts at the SPI peripheral */
 
@@ -1147,15 +1277,18 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
       /* Attach and enable interrupts at the NVIC */
 
       DEBUGVERIFY(irq_attach(priv->irq, s32k1xx_lpspi_interrupt, priv));
+
       up_enable_irq(priv->irq);
       
       /* Enable LPSPI */
 
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CR_OFFSET, 0, LPSPI_CR_MEN);
 
-      s32k1xx_lpspi_dumpregs(priv, "After initialization");
-
       priv->initialized = true;
+
+      leave_critical_section(flags);
+
+      s32k1xx_lpspi_dumpregs(priv, "After initialization");
     }
 
   return &priv->ctrlr;

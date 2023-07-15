@@ -365,6 +365,7 @@
 #define PIN_LPI2C0_SDA_2          (PIN_ALT3   | PIN_PORTA | PIN2)
 #define PIN_LPI2C0_SDAS_1         (PIN_ALT3   | PIN_PORTA | PIN1)
 #define PIN_LPI2C0_SDAS_2         (PIN_ALT3   | PIN_PORTB | PIN10)
+
 #define PIN_LPSPI0_PCS0_1         (PIN_ALT3   | PIN_PORTB | PIN0)
 #define PIN_LPSPI0_PCS0_2         (PIN_ALT4   | PIN_PORTA | PIN26)
 #define PIN_LPSPI0_PCS0_3         (PIN_ALT4   | PIN_PORTB | PIN5)

@@ -161,7 +161,7 @@ int s32k1xx_i2cdev_initialize(void);
 int s32k1xx_spidev_initialize(void);
 
 
-int s32k1xx_spi_slave_dev_initialize(int bus);
+int s32k1xx_spislavedev_initialize(void);
 
 #endif /* __ASSEMBLY__ */
 #endif /* __BOARDS_ARM_S32K1XX_S32K146EVB_SRC_S32K146EVB_H */

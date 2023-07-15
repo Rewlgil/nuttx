@@ -60,7 +60,7 @@ int weak_function s32k1xx_spidev_initialize(void)
 {
   int ret = OK;
 
-#ifdef CONFIG_S32K1XX_LPSPI0
+#ifdef CONFIG_S32K1XX_LPSPI0_MASTER
   /* LPSPI0 *****************************************************************/
 
   /* Configure LPSPI0 peripheral chip select */
@@ -84,9 +84,9 @@ int weak_function s32k1xx_spidev_initialize(void)
       return ret;
     }
 #  endif /* CONFIG_SPI_DRIVER */
-#endif /* CONFIG_S32K1XX_LPSPI0 */
+#endif /* CONFIG_S32K1XX_LPSPI0_MASTER */
 
-#ifdef CONFIG_S32K1XX_LPSPI1
+#ifdef CONFIG_S32K1XX_LPSPI1_MASTER
   /* LPSPI1 *****************************************************************/
 
   /* Configure LPSPI1 peripheral chip select */
@@ -110,33 +110,33 @@ int weak_function s32k1xx_spidev_initialize(void)
       return ret;
     }
 #  endif /* CONFIG_SPI_DRIVER */
-#endif /* CONFIG_S32K1XX_LPSPI1 */
+#endif /* CONFIG_S32K1XX_LPSPI1_MASTER */
 
-#ifdef CONFIG_S32K1XX_LPSPI2
+#ifdef CONFIG_S32K1XX_LPSPI2_MASTER
   /* LPSPI2 *****************************************************************/
 
   /* Configure LPSPI2 peripheral chip select */
 
-  // s32k1xx_pinconfig(PIN_LPSPI2_PCS);
+  s32k1xx_pinconfig(PIN_LPSPI2_PCS);
 
 #  ifdef CONFIG_SPI_DRIVER
   /* Initialize the SPI driver for LPSPI2 */
 
-  // struct spi_dev_s *g_lpspi2 = s32k1xx_lpspibus_initialize(2);
-  // if (g_lpspi2 == NULL)
-  //   {
-  //     spierr("ERROR: FAILED to initialize LPSPI2\n");
-  //     return -ENODEV;
-  //   }
+  struct spi_dev_s *g_lpspi2 = s32k1xx_lpspibus_initialize(2);
+  if (g_lpspi2 == NULL)
+    {
+      spierr("ERROR: FAILED to initialize LPSPI2\n");
+      return -ENODEV;
+    }
 
-  // ret = spi_register(g_lpspi2, 2);
-  // if (ret < 0)
-  //   {
-  //     spierr("ERROR: FAILED to register LPSPI2 driver\n");
-  //     return ret;
-  //   }
+  ret = spi_register(g_lpspi2, 2);
+  if (ret < 0)
+    {
+      spierr("ERROR: FAILED to register LPSPI2 driver\n");
+      return ret;
+    }
 #  endif /* CONFIG_SPI_DRIVER */
-#endif /* CONFIG_S32K1XX_LPSPI2 */
+#endif /* CONFIG_S32K1XX_LPSPI2_MASTER */
 
   return ret;
 }
@@ -167,7 +167,7 @@ int weak_function s32k1xx_spidev_initialize(void)
  *
  ****************************************************************************/
 
-#ifdef CONFIG_S32K1XX_LPSPI0
+#ifdef CONFIG_S32K1XX_LPSPI0_MASTER
 /* LPSPI0 *******************************************************************/
 
 void s32k1xx_lpspi0select(struct spi_dev_s *dev, uint32_t devid,
@@ -183,9 +183,9 @@ uint8_t s32k1xx_lpspi0status(struct spi_dev_s *dev, uint32_t devid)
 {
   return 0;
 }
-#endif /* CONFIG_S32K1XX_LPSPI0 */
+#endif /* CONFIG_S32K1XX_LPSPI0_MASTER */
 
-#ifdef CONFIG_S32K1XX_LPSPI1
+#ifdef CONFIG_S32K1XX_LPSPI1_MASTER
 /* LPSPI1 *******************************************************************/
 
 void s32k1xx_lpspi1select(struct spi_dev_s *dev, uint32_t devid,
@@ -201,9 +201,9 @@ uint8_t s32k1xx_lpspi1status(struct spi_dev_s *dev, uint32_t devid)
 {
   return 0;
 }
-#endif /* CONFIG_S32K1XX_LPSPI1 */
+#endif /* CONFIG_S32K1XX_LPSPI1_MASTER */
 
-#ifdef CONFIG_S32K1XX_LPSPI2
+#ifdef CONFIG_S32K1XX_LPSPI2_MASTER
 /* LPSPI2 *******************************************************************/
 
 void s32k1xx_lpspi2select(struct spi_dev_s *dev, uint32_t devid,
@@ -212,12 +212,12 @@ void s32k1xx_lpspi2select(struct spi_dev_s *dev, uint32_t devid,
   spiinfo("devid: %" PRId32 ", CS: %s\n", devid,
           selected ? "assert" : "de-assert");
 
-  // s32k1xx_gpiowrite(PIN_LPSPI2_PCS, !selected);
+  s32k1xx_gpiowrite(PIN_LPSPI2_PCS, !selected);
 }
 
 uint8_t s32k1xx_lpspi2status(struct spi_dev_s *dev, uint32_t devid)
 {
   return 0;
 }
-#endif /* CONFIG_S32K1XX_LPSPI2 */
+#endif /* CONFIG_S32K1XX_LPSPI2_MASTER */
 #endif /* CONFIG_S32K1XX_LPSPI */

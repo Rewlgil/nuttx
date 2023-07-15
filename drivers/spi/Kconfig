@@ -59,9 +59,16 @@ config SPI_SLAVE_DRIVER_WIDTH
 	---help---
 		Number of bits per SPI Slave transfer (default 8).
 
+config SPI_SLAVE_DRIVER_FRAME_SIZE
+	int "SPI Slave framesize (nbits)"
+	default 32
+	---help---
+		Size of the internal TX and RX buffers of the SPI Slave
+		character driver.
+
 config SPI_SLAVE_DRIVER_BUFFER_SIZE
-	int "SPI Slave character driver TX and RX buffer sizes"
-	default 128
+	int "SPI Slave character driver TX and RX buffer sizes(bytes)"
+	default 32
 	---help---
 		Size of the internal TX and RX buffers of the SPI Slave
 		character driver.
