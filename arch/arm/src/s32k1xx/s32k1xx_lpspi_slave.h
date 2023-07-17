@@ -99,7 +99,7 @@ struct s32k1xx_lpspidev_s
   xcpt_t handler;              /* SPI interrupt handler */
   uint32_t base;               /* SPI controller register base address */
   mutex_t spilock;             /* Assures mutually exclusive access to SPI */
-  uint32_t outval;             /* Default shift-out value */
+  uint8_t outval;             /* Default shift-out value */
   uint16_t irq;                /* SPI IRQ number */
   uint8_t mode;                /* Mode 0,1,2,3 */
   uint16_t nbits;              /* Width of word in bits (2 to 4096) */
@@ -112,7 +112,7 @@ struct s32k1xx_lpspidev_s
   uint8_t tx_head;                /* Location of next value */
   uint8_t tx_tail;                /* Index of first value */
 
-  uint32_t outq[CONFIG_SPI_SLAVE_QSIZE];
+  uint8_t outq[CONFIG_SPI_SLAVE_QSIZE];
 
 };
 

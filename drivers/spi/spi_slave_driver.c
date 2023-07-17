@@ -359,10 +359,10 @@ static ssize_t spi_slave_write(FAR struct file *filep,
    * to complete the words
    */
 
-  if (priv->tx_length % (CONFIG_SPI_SLAVE_DRIVER_WIDTH / 8) != 0)
-    {
-      num_words += 1;
-    }
+  // if (priv->tx_length % (CONFIG_SPI_SLAVE_DRIVER_WIDTH / 8) != 0)
+  //   {
+  //     num_words += 1;
+  //   }
 
   enqueued_bytes = WORDS2BYTES(SPIS_CTRLR_ENQUEUE(priv->ctrlr,
                                                   priv->tx_buffer,
