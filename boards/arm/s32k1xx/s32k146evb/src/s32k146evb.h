@@ -88,9 +88,19 @@
 #define PIN_CONF_VNQ_CS          (PIN_PTD29 | GPIO_INPUT)
 #define PIN_CONF_VNQ_SEL1        (PIN_PTD30 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
 
-// #define gpio9       (PIN_PTC0  | PIN_ANALOG)
-
-// #define gpio10      (PIN_PTB11 | GPIO_HIGHDRIVE | GPIO_OUTPUT_ZERO)
+/* UCC21750DWR IGBT driver 
+ * 
+ * UCC_INP      PTE20   Control pin
+ * UCC_INN      PTE21   OUTPUT always LOW
+ * UCC_RDY      PTE22   INPUT active HIGH
+ * UCC_FLT      PTE23   INPUT active low
+ * UCC_EN       PTE24   OUTPUT (RST)
+ */
+#define PIN_CONF_UCC_INP        (PIN_PTE20 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define PIN_CONF_UCC_INN        (PIN_PTE21 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define PIN_CONF_UCC_RDY        (PIN_PTE22 | GPIO_INPUT)
+#define PIN_CONF_UCC_FLT        (PIN_PTE23 | GPIO_INPUT)
+#define PIN_CONF_UCC_EN         (PIN_PTE24 | GPIO_OUTPUT | GPIO_OUTPUT_ONE)
 
 /****************************************************************************
  * Public Data
