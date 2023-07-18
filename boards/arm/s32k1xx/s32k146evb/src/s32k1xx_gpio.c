@@ -72,26 +72,19 @@ static int gpio_setpintype(struct gpio_dev_s *dev,
 
 /* Set of GPIO pins */
 
-#define NUM_OF_GPIO 10
+#define NUM_OF_GPIO 9
 
-static uint32_t g_gpiopins[] =
+static uint32_t g_gpiopins[NUM_OF_GPIO] =
 {
-  gpio0,
-  gpio1,
-  gpio2,
-  gpio3,
-  gpio4,
-  // gpio5,
-  // gpio6,
-  // gpio7,
-  // gpio8,
-  // gpio9,
-  // gpio10,
-  GPIO_SW2,
-  GPIO_SW3,
-  GPIO_LED_R, 
-  GPIO_LED_G, 
-  GPIO_LED_B,
+  PIN_CONF_CONTACT1,        // gpio0
+  PIN_CONF_CONTACT2,        // gpio1
+  PIN_CONF_CONTACT3,        // gpio2
+  PIN_CONF_CONTACT4,        // gpio3
+  PIN_CONF_VNQ_SEN,         // gpio4
+  PIN_CONF_VNQ_FAULT_RST,   // gpio5
+  PIN_CONF_VNQ_SEL0,        // gpio6
+  PIN_CONF_VNQ_CS,          // gpio7
+  PIN_CONF_VNQ_SEL1,        // gpio8
 };
 
 #if NUM_OF_GPIO > 0

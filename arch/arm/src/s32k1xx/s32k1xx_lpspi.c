@@ -1895,7 +1895,13 @@ static void s32k1xx_lpspi_bus_initialize(struct s32k1xx_lpspidev_s *priv)
   reg = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET);
   reg &= ~(LPSPI_CFGR1_OUTCFG |
            LPSPI_CFGR1_PINCFG_MASK | LPSPI_CFGR1_NOSTALL);
-  reg |= LPSPI_CFGR1_OUTCFG_RETAIN | LPSPI_CFGR1_PINCFG_SIN_SOUT;
+
+  /* Swap SIN and SOUT pin because incorrect hardware design */
+
+  // reg |= LPSPI_CFGR1_OUTCFG_RETAIN | LPSPI_CFGR1_PINCFG_SIN_SOUT;
+  reg |= LPSPI_CFGR1_OUTCFG_RETAIN | LPSPI_CFGR1_PINCFG_SOUT_SIN;
+
+  
   s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET, reg);
 
   /* Set frequency and delay times */

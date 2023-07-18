@@ -66,34 +66,27 @@
 
 /* VNQ9080AJ High-Side Driver
  *
- * IN0          PTB5    control input pin
- * IN1          PTB4
- * IN2          PTB3
- * IN3          PTB2
- * 
- * FaultRST     PTA3    auto restart mode active low
- *  
- * SEn          PTB10   enable CS diagnostic
- * SEL0         PTD13   CS multiplexer
- * SEL1         PTD14
- * CS           PTB0    input pin
- *  
- * VBAT_ADC     PTC0    input pin
- *  
- * In_PullUP    PTB11   output pullup (unused)
+ * CONTACT1             PTD18   control input pin
+ * CONTACT2             PTD19
+ * CONTACT3             PTD22
+ * CONTACT4             PTD23
+ *
+ * VNQ_SEN              PTD24   enable CS diagnostic
+ * VNQ_FAULT_RST        PTD27   auto restart mode active low
+ * VNQ_SEL0             PTD28   CS multiplexer
+ * VNQ_CS               PTD29   input pin
+ * VNQ_SEL1             PTD30
  */
+#define PIN_CONF_CONTACT1        (PIN_PTD18 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define PIN_CONF_CONTACT2        (PIN_PTD19 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define PIN_CONF_CONTACT3        (PIN_PTD22 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define PIN_CONF_CONTACT4        (PIN_PTD23 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
 
-#define gpio0       (PIN_PTB5  | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
-#define gpio1       (PIN_PTB4  | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
-#define gpio2       (PIN_PTB3  | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
-#define gpio3       (PIN_PTB2  | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
-
-#define gpio4       (PIN_PTA3  | GPIO_OUTPUT | GPIO_OUTPUT_ONE)
-
-// #define gpio5       (PIN_PTB10 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
-// #define gpio6       (PIN_PTD13 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
-// #define gpio7       (PIN_PTD14 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
-// #define gpio8       (PIN_PTB0  | GPIO_INPUT)
+#define PIN_CONF_VNQ_SEN         (PIN_PTD24 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define PIN_CONF_VNQ_FAULT_RST   (PIN_PTD27 | GPIO_OUTPUT | GPIO_OUTPUT_ONE)
+#define PIN_CONF_VNQ_SEL0        (PIN_PTD28 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
+#define PIN_CONF_VNQ_CS          (PIN_PTD29 | GPIO_INPUT)
+#define PIN_CONF_VNQ_SEL1        (PIN_PTD30 | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
 
 // #define gpio9       (PIN_PTC0  | PIN_ANALOG)
 

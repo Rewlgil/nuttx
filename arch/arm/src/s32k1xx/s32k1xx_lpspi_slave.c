@@ -1170,8 +1170,12 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
 
       /* Configure LPSPI in slave mode */
 
+      /* Swap SIN and SOUT pin because incorrect hardware design */
+
+      // s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET, 
+      //                           LPSPI_CFGR1_MASTER, 0);
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CFGR1_OFFSET, 
-                                LPSPI_CFGR1_MASTER, 0);
+                                LPSPI_CFGR1_MASTER, LPSPI_CFGR1_PINCFG_SOUT_SIN);
 
       #ifdef CONFIG_S32K1XX_LPSPI0_SLAVE
       if (bus == 0) 

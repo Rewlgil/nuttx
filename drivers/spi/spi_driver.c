@@ -239,7 +239,7 @@ static ssize_t spidrvr_write(FAR struct file *filep, FAR const char *buffer,
 
   struct spi_sequence_s lvSeq =
   {
-    .dev         = SPIDEV_ID(SPIDEVTYPE_USER, 3),
+    .dev         = SPIDEV_ID(SPIDEVTYPE_USER, 0),
     .mode        = 3,
     .nbits       = len*8,
     .frequency   = 2000000,
