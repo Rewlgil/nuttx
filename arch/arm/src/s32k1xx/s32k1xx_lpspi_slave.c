@@ -513,7 +513,7 @@ static int s32k1xx_lpspi_enqueue(struct spi_slave_ctrlr_s *ctrlr,
       /* store words of data */
       if (SPIS_CTRLR_QFULL(ctrlr) == false)
         {
-          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++);
+          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 0;
           priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 8;
           priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 16;
           priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 24;
@@ -743,8 +743,9 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
       spiinfo("SR reg: %08" PRIX32 "\tIER reg: %08" PRIX32 "\n", sr, ier);
       
-      regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_TCR_OFFSET);
-      spiinfo("RX count: %d\tTX count: %d\n", (regval >> 16) & 7, regval & 7);
+      regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_FCR_OFFSET);
+      spiinfo("RX count: %d\tTX count: %d\n", (int)((regval >> 16) & 7),
+                                              (int) (regval & 7) );
 
       /* Return from the interrupt handler when all pending interrupts have
        * been processed.
@@ -774,7 +775,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
       if ((pending & LPSPI_SR_REF) != 0)
         {
-          spierr("ERROR: RX FIFO overflows: %08" PRIX32 "\n", pending);
+          spierr("ERROR: RX FIFO overflows: %08" PRIX32 "\n", sr);
 
           /* End the transfer by clear the interrupt flag and reset FIFO */
 
@@ -854,7 +855,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
       if ((pending & LPSPI_SR_TEF) != 0)
         {
-          spierr("ERROR: Underrun (UNDEX): %08" PRIX32 "\n", pending);
+          spierr("ERROR: Underrun (UNDEX): %08" PRIX32 "\n", sr);
           
           /* End the transfer by clear the interrupt flag */
 
@@ -884,6 +885,13 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
           s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
 
+          if (priv->nbits > 32)
+            {
+              /* reload new data into FIFO */
+              regval = s32k1xx_lpspi_dequeue(priv);
+
+              s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
+            }
         }
 
       /* The SPI slave hardware provides only an event when NSS rises
@@ -1260,7 +1268,7 @@ struct spi_slave_ctrlr_s *s32k1xx_spi_slave_initialize(int bus)
       /* Set water masks */
 
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_FCR_OFFSET, 
-                                LPSPI_FCR_TXWATER_MASK, LPSPI_FCR_TXWATER(3));
+                                LPSPI_FCR_TXWATER_MASK, LPSPI_FCR_TXWATER(0));
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_FCR_OFFSET, 
                                 LPSPI_FCR_RXWATER_MASK, LPSPI_FCR_RXWATER(1));
       
