@@ -97,10 +97,6 @@ static
 inline void     s32k1xx_lpspi_putreg32(struct s32k1xx_lpspidev_s *priv,
                             uint8_t offset, uint32_t value);
 
-static 
-inline void     s32k1xx_lpspi_putreg8(struct s32k1xx_lpspidev_s *priv,
-                            uint8_t offset, uint8_t value);
-
 static void     s32k1xx_lpspi_modifyreg32(struct s32k1xx_lpspidev_s *priv,
                                           uint8_t offset, uint32_t clrbits,
                                           uint32_t setbits);
@@ -117,7 +113,7 @@ static int      s32k1xx_lpspi_interrupt(int irq, void *context, void *arg);
 
 /* SPI Helpers */
 
-static uint8_t  s32k1xx_lpspi_dequeue(struct s32k1xx_lpspidev_s *priv);
+static uint32_t s32k1xx_lpspi_dequeue(struct s32k1xx_lpspidev_s *priv);
 static void     s32k1xx_lpspi_setTCR(struct s32k1xx_lpspidev_s *priv, 
                                      enum spi_slave_mode_e mode,
                                      uint16_t nbits, uint8_t PCSpin);
@@ -262,13 +258,6 @@ void s32k1xx_lpspi_putreg32(struct s32k1xx_lpspidev_s *priv,
                             uint8_t offset, uint32_t value)
 {
   putreg32(value, priv->base + offset);
-}
-
-static inline
-void s32k1xx_lpspi_putreg8(struct s32k1xx_lpspidev_s *priv,
-                            uint8_t offset, uint8_t value)
-{
-  putreg8(value, priv->base + offset);
 }
 
 /****************************************************************************
@@ -505,10 +494,10 @@ static int s32k1xx_lpspi_enqueue(struct spi_slave_ctrlr_s *ctrlr,
    * Interrupts are disabled briefly.
    */
 
-  // if (len == 0)
-  //   {
-  //     len = 1;
-  //   }
+  if (len == 0)
+    {
+      len = 1;
+    }
 
   flags = enter_critical_section();
 
@@ -524,16 +513,14 @@ static int s32k1xx_lpspi_enqueue(struct spi_slave_ctrlr_s *ctrlr,
       /* store words of data */
       if (SPIS_CTRLR_QFULL(ctrlr) == false)
         {
-          priv->outq[priv->tx_head] = *(const uint8_t *)(data++);
-          // priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 8;
-          // priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 16;
-          // priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 24;
+          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++);
+          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 8;
+          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 16;
+          priv->outq[priv->tx_head] |= *(const uint8_t *)(data++) << 24;
           
-          // spiinfo("enqueue [%d]:%04X %04X", priv->tx_head,
-          //         (uint16_t)((priv->outq[priv->tx_head] >> 16) & 0xffff),
-          //         (uint16_t)( priv->outq[priv->tx_head]        & 0xffff));
-          spiinfo("enqueue [%d]:%02X", priv->tx_head,
-                  (uint8_t)priv->outq[priv->tx_head]),
+          spiinfo("enqueue [%d]:%04X %04X", priv->tx_head,
+                  (uint16_t)((priv->outq[priv->tx_head] >> 16) & 0xffff),
+                  (uint16_t)( priv->outq[priv->tx_head]        & 0xffff));
           
           /* Select next word */
 
@@ -586,9 +573,9 @@ static int s32k1xx_lpspi_enqueue(struct spi_slave_ctrlr_s *ctrlr,
  *
  ****************************************************************************/
 
-static uint8_t s32k1xx_lpspi_dequeue(struct s32k1xx_lpspidev_s *priv)
+static uint32_t s32k1xx_lpspi_dequeue(struct s32k1xx_lpspidev_s *priv)
 {
-  uint8_t ret;
+  uint32_t ret;
   int next;
 
   /* Is the queue empty? */
@@ -599,11 +586,9 @@ static uint8_t s32k1xx_lpspi_dequeue(struct s32k1xx_lpspidev_s *priv)
 
       ret = priv->outq[priv->tx_tail];
 
-      // spiinfo("dequeue [%d]:%04X %04X", priv->tx_tail,
-      //         (uint16_t)((priv->outq[priv->tx_tail] >> 16) & 0xffff),
-      //         (uint16_t)( priv->outq[priv->tx_tail]        & 0xffff));
-      spiinfo("dequeue [%d]:%02X", priv->tx_tail,
-              (uint8_t)priv->outq[priv->tx_tail]);
+      spiinfo("dequeue [%d]:%04X %04X", priv->tx_tail,
+              (uint16_t)((priv->outq[priv->tx_tail] >> 16) & 0xffff),
+              (uint16_t)( priv->outq[priv->tx_tail]        & 0xffff));
 
       /* Update the tail index, handling wraparound */
 
@@ -758,7 +743,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
       spiinfo("SR reg: %08" PRIX32 "\tIER reg: %08" PRIX32 "\n", sr, ier);
       
-      regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_FSR_OFFSET);
+      regval = s32k1xx_lpspi_getreg32(priv, S32K1XX_LPSPI_TCR_OFFSET);
       spiinfo("RX count: %d\tTX count: %d\n", (regval >> 16) & 7, regval & 7);
 
       /* Return from the interrupt handler when all pending interrupts have
@@ -789,7 +774,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
       if ((pending & LPSPI_SR_REF) != 0)
         {
-          spierr("ERROR: RX FIFO overflows: %08" PRIX32 "\n", sr);
+          spierr("ERROR: RX FIFO overflows: %08" PRIX32 "\n", pending);
 
           /* End the transfer by clear the interrupt flag and reset FIFO */
 
@@ -869,7 +854,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
       if ((pending & LPSPI_SR_TEF) != 0)
         {
-          spierr("ERROR: Underrun (UNDEX): %08" PRIX32 "\n", sr);
+          spierr("ERROR: Underrun (UNDEX): %08" PRIX32 "\n", pending);
           
           /* End the transfer by clear the interrupt flag */
 
@@ -897,7 +882,7 @@ static int s32k1xx_lpspi_interrupt(int irq, void *context, void *arg)
 
           regval = s32k1xx_lpspi_dequeue(priv);
 
-          s32k1xx_lpspi_putreg8(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
+          s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, regval);
 
         }
 
@@ -1010,9 +995,9 @@ static void s32k1xx_lpspi_bind(struct spi_slave_ctrlr_s *ctrlr,
    * be shifted out the SPI clock is detected.
    */
 
-  // SPIS_DEV_GETDATA(dev, &data);
-  // priv->outval = *(const uint8_t *)data;
-  // s32k1xx_lpspi_putreg8(priv, S32K1XX_LPSPI_TDR_OFFSET, priv->outval);
+  SPIS_DEV_GETDATA(dev, &data);
+  priv->outval = *(const uint32_t *)data;
+  s32k1xx_lpspi_putreg32(priv, S32K1XX_LPSPI_TDR_OFFSET, priv->outval);
 
   /* Setup to begin normal SPI operation */
   
