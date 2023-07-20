@@ -216,7 +216,6 @@ static ssize_t spidrvr_write(FAR struct file *filep, FAR const char *buffer,
 {
   FAR struct inode *inode;
   FAR struct spi_driver_s *priv;
-  int ret = OK;
 
   spiinfo("filep=%p buffer=%p buflen=%zu\n", filep, buffer, len);
 
@@ -228,106 +227,26 @@ static ssize_t spidrvr_write(FAR struct file *filep, FAR const char *buffer,
   priv = (FAR struct spi_driver_s *)inode->i_private;
   DEBUGASSERT(priv);
 
-  struct spi_trans_s lvTrans = 
-  {
-    .deselect  = true,
-    .delay     = 0,
-    .nwords    = 1,
-    .txbuffer  = buffer,
-    .rxbuffer  = NULL
-  };
-
-  struct spi_sequence_s lvSeq =
-  {
-    .dev         = SPIDEV_ID(SPIDEVTYPE_USER, 0),
-    .mode        = 1,
-    .nbits       = len*8,
-    .frequency   = 2000000,
-    .ntrans      = 1,
-    .trans       = &lvTrans
-  };
-  
   /* Get exclusive access to the SPI bus */
 
   SPI_LOCK(priv->spi, true);
 
-  /* Establish the fixed SPI attributes for all transfers in the sequence */
+  /* select which PCS pin to use for transfer */
 
-  SPI_SETFREQUENCY(priv->spi, lvSeq.frequency);
+  SPI_SELECT(priv->spi, 0, true);
 
-#ifdef CONFIG_SPI_DELAY_CONTROL
-  ret = SPI_SETDELAY(priv->spi, lvSeq.a, lvSeq.b, lvSeq.c, lvSeq.i);
-  if (ret < 0)
-    {
-      spierr("ERROR: SPI_SETDELAY failed: %d\n", ret);
-      SPI_LOCK(spi, false);
-      return ret;
-    }
-#endif
+  SPI_SETFREQUENCY(priv->spi, 2000000);
+  SPI_SETMODE(priv->spi, 1);
+  SPI_SETBITS(priv->spi, len*8);
 
-  SPI_SETMODE(priv->spi, lvSeq.mode);
-  SPI_SETBITS(priv->spi, lvSeq.nbits);
+  /* Perform the transfer */
 
-  /* Select the SPI device in preparation for the transfer.
-   * REVISIT: This is redundant.
-   */
+  SPI_EXCHANGE(priv->spi, buffer, NULL, 1);
 
-  SPI_SELECT(priv->spi, lvSeq.dev, true);
+  /* Return exclusive access to the SPI bus */
 
-  /* Then perform each transfer is the sequence */
-
-  for (int i = 0; i < lvSeq.ntrans; i++)
-    {
-      /* Establish the fixed SPI attributes for unique to this transaction */
-
-#ifdef CONFIG_SPI_HWFEATURES
-      ret = SPI_HWFEATURES(priv->spi, lvTrans.hwfeat);
-      if (ret < 0)
-        {
-          spierr("ERROR: SPI_HWFEATURES failed: %d\n", ret);
-          break;
-        }
-#endif
-
-#ifdef CONFIG_SPI_CMDDATA
-      ret = SPI_CMDDATA(priv->spi, lvSeq.dev, lvTrans.cmd);
-      if (ret < 0)
-        {
-          spierr("ERROR: SPI_CMDDATA failed: %d\n", ret);
-          break;
-        }
-#endif
-
-      /* [Re-]select the SPI device in preparation for the transfer */
-
-      SPI_SELECT(priv->spi, lvSeq.dev, true);
-
-      /* Perform the transfer */
-
-      SPI_EXCHANGE(priv->spi, lvTrans.txbuffer, lvTrans.rxbuffer, lvTrans.nwords);
-
-      /* Possibly de-select the SPI device after the transfer */
-
-      if (lvTrans.deselect)
-        {
-          SPI_SELECT(priv->spi, lvSeq.dev, false);
-        }
-
-      /* Perform any requested inter-transfer delay */
-
-      if (lvTrans.delay > 0)
-        {
-          nxsig_usleep(lvTrans.delay);
-        }
-    }
-
-  SPI_SELECT(priv->spi, lvSeq.dev, false);
   SPI_LOCK(priv->spi, false);
   
-  if (ret < 0)
-    {
-      return ret;
-    }
   return len; /* Say that everything was written */
   
 }
