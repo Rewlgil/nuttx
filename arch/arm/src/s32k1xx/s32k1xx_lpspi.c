@@ -1006,12 +1006,16 @@ static uint32_t s32k1xx_lpspi_setfrequency(struct spi_dev_s *dev,
       priv->frequency = frequency;
       priv->actual = best_frequency;
 
-      s32k1xx_lpspi_set_delays(priv, 1000000000 / best_frequency,
-                                    LPSPI_PCS_TO_SCK);
-      s32k1xx_lpspi_set_delays(priv, 1000000000 / best_frequency,
-                                    LPSPI_LAST_SCK_TO_PCS);
-      s32k1xx_lpspi_set_delays(priv, 1000000000 / best_frequency,
-                               LPSPI_BETWEEN_TRANSFER);
+      // s32k1xx_lpspi_set_delays(priv, 1000000000 / best_frequency,
+      //                               LPSPI_PCS_TO_SCK);
+      // s32k1xx_lpspi_set_delays(priv, 1000000000 / best_frequency,
+      //                               LPSPI_LAST_SCK_TO_PCS);
+      // s32k1xx_lpspi_set_delays(priv, 1000000000 / best_frequency,
+      //                          LPSPI_BETWEEN_TRANSFER);
+
+      s32k1xx_lpspi_set_delays(priv, 2000, LPSPI_PCS_TO_SCK);
+      s32k1xx_lpspi_set_delays(priv, 1000, LPSPI_LAST_SCK_TO_PCS);
+      s32k1xx_lpspi_set_delays(priv, 3000 ,LPSPI_BETWEEN_TRANSFER);
 
       s32k1xx_lpspi_modifyreg32(priv, S32K1XX_LPSPI_CCR_OFFSET,
                                 LPSPI_CCR_SCKDIV_MASK,
