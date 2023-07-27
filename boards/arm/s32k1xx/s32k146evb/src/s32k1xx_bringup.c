@@ -48,6 +48,10 @@
 #  include "s32k1xx_eeeprom.h"
 #endif
 
+#ifdef CONFIG_S32K1XX_FLEXCAN
+#  include "s32k1xx_flexcan.h"
+#endif
+
 #include "s32k146evb.h"
 
 /****************************************************************************
@@ -162,6 +166,25 @@ int s32k1xx_bringup(void)
     }
 #endif
 
+#ifdef CONFIG_NETDEV_LATEINIT
+
+#  ifdef CONFIG_S32K1XX_ENET
+  ret = s32k1xx_netinitialize(0);
+#  endif
+
+#  ifdef CONFIG_S32K1XX_FLEXCAN0
+  ret = s32k1xx_caninitialize(0);
+#  endif
+
+#  ifdef CONFIG_S32K1XX_FLEXCAN1
+  ret = s32k1xx_caninitialize(1);
+#  endif
+
+#  ifdef CONFIG_S32K1XX_FLEXCAN2
+  ret = s32k1xx_caninitialize(2);
+#  endif
+
+#endif
 
   return ret;
 }
