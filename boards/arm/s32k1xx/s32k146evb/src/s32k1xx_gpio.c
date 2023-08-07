@@ -72,7 +72,7 @@ static int gpio_setpintype(struct gpio_dev_s *dev,
 
 /* Set of GPIO pins */
 
-#define NUM_OF_GPIO 16
+#define NUM_OF_GPIO 17
 
 static uint32_t g_gpiopins[NUM_OF_GPIO] =
 {
@@ -94,6 +94,7 @@ static uint32_t g_gpiopins[NUM_OF_GPIO] =
 
   PIN_BCC_EN,               // gpio14
   PIN_BCC_INT,              // gpio15
+  PIN_BCC_PCS               // gpio16
 };
 
 #if NUM_OF_GPIO > 0

@@ -105,9 +105,11 @@
 /* MC33664 Isolated network high-speed transceiver for BCC
  * BCC_INT      PTB12   Input interrupt
  * BCC_EN       PTE8    Output chip enable
+ * BCC_PCS      PTB5    Output chip select for wakeup
  */
 #define PIN_BCC_EN              (PIN_PTE8  | GPIO_OUTPUT | GPIO_OUTPUT_ZERO)
 #define PIN_BCC_INT             (PIN_PTB12 | GPIO_INPUT)
+#define PIN_BCC_PCS             (PIN_PTB5  | GPIO_OUTPUT | GPIO_OUTPUT_ONE)
 
 /****************************************************************************
  * Public Data
