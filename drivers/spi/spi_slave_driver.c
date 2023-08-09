@@ -69,7 +69,12 @@ struct spi_slave_driver_s
   /* Receive buffer */
 
   uint8_t rx_buffer[CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE];
-  uint8_t rx_length;         /* Location of next RX value */
+  
+  /* Receive Circular FIFO */
+  uint8_t rx_queue[CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE];
+  uint8_t rx_head;
+  uint8_t rx_tail;
+  ssize_t rx_len;
 
   /* Transmit buffer */
 
@@ -191,6 +196,10 @@ static int spi_slave_open(FAR struct file *filep)
   priv->crefs++;
   DEBUGASSERT(priv->crefs > 0);
 
+  priv->rx_head = 0;
+  priv->rx_tail = 0;
+  priv->rx_len = 0;
+
   nxmutex_unlock(&priv->lock);
   return OK;
 }
@@ -283,7 +292,7 @@ static ssize_t spi_slave_read(FAR struct file *filep, FAR char *buffer,
 {
   FAR struct inode *inode;
   FAR struct spi_slave_driver_s *priv;
-  size_t read_bytes;
+  size_t read_bytes = 0;
 
   spiinfo("filep=%p buffer=%p buflen=%zu\n", filep, buffer, buflen);
 
@@ -298,21 +307,37 @@ static ssize_t spi_slave_read(FAR struct file *filep, FAR char *buffer,
       return -ENOBUFS;
     }
 
-  // remaining_words = SPIS_CTRLR_QPOLL(priv->ctrlr);
-  // if (remaining_words == 0)
-  //   {
-  //     spiinfo("All words retrieved!\n");
-  //   }
-  // else
-  //   {
-  //     spiinfo("%zu words left in the buffer\n", remaining_words);
-  //   }
+  if (priv->rx_len > 0)
+    {
+      read_bytes = MIN(priv->rx_len, buflen);
 
-  read_bytes = MIN(buflen, priv->rx_length);
+      /* dequeue data from circular FIFO to buffer */
+      
+      priv->rx_len -= read_bytes;
+      
+      for (ssize_t i = 0; i < read_bytes; i++)
+        {
+          /* dequeue 1 byte of data*/
 
-  memcpy(buffer, priv->rx_buffer, read_bytes);
+          priv->rx_buffer[i] = priv->rx_queue[priv->rx_tail];
 
-  priv->rx_length = 0;
+          /* Update tail index, handling wraparound */
+
+          priv->rx_tail++;
+          if (priv->rx_tail >= CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE)
+            {
+              priv->rx_tail = 0;
+            }
+        }
+
+      /* copy data from buffer to user variable */
+
+      memcpy(buffer, priv->rx_buffer, read_bytes);
+    }
+  else
+    {
+      spierr("ERROR: No available data\n");
+    }
 
   return (ssize_t)read_bytes;
 }
@@ -554,18 +579,43 @@ static size_t spi_slave_receive(FAR struct spi_slave_dev_s *dev,
 {
   FAR struct spi_slave_driver_s *priv = (FAR struct spi_slave_driver_s *)dev;
 
+  /* Check if it is the last byte of 6 byte word */
+
+  if ((*(uint32_t*)data & 0xFFFFFF00) == 0x00)
+  {
+    len = 1;
+  }
+
   /* determine writable data size by calculate remaining buffer space */
 
-  size_t recv_bytes = MIN(len, CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE - priv->rx_length);
+  size_t recv_bytes = MIN(len, CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE - priv->rx_len);
 
   if (recv_bytes < len) 
     {
       spiwarn("SPI recieve driver FIFO is full");
     }
 
-  memcpy(priv->rx_buffer + priv->rx_length, data, recv_bytes);
+  if (len > 0)
+    {
+      /* enqueue data to circular FIFO */
 
-  priv->rx_length += recv_bytes;
+      priv->rx_len += recv_bytes;
+
+      for (ssize_t i = 0; i < recv_bytes; i++)
+        {
+          /* enqueue 4 byte of data */
+
+          priv->rx_queue[priv->rx_head] = (uint8_t)((*(uint32_t*)data & (0xFF << i*8)) >> i*8);
+
+          /* Update head index, handling wraparound */
+
+          priv->rx_head++;
+          if (priv->rx_head >= CONFIG_SPI_SLAVE_DRIVER_BUFFER_SIZE)
+            {
+              priv->rx_head = 0;
+            }
+        }
+    }
 
   return BYTES2WORDS(recv_bytes);
 }
