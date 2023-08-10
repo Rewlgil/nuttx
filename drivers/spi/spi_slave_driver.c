@@ -307,7 +307,7 @@ static ssize_t spi_slave_read(FAR struct file *filep, FAR char *buffer,
       return -ENOBUFS;
     }
 
-  if (priv->rx_len > 0)
+   if (priv->rx_len > 0)
     {
       read_bytes = MIN(priv->rx_len, buflen);
 
@@ -592,7 +592,8 @@ static size_t spi_slave_receive(FAR struct spi_slave_dev_s *dev,
 
   if (recv_bytes < len) 
     {
-      spiwarn("SPI recieve driver FIFO is full");
+      spiwarn("SPI recieve driver FIFO is full required %d bytes, only got %d bytes",
+              len, recv_bytes);
     }
 
   if (len > 0)
