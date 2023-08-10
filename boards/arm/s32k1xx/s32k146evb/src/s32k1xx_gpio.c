@@ -91,10 +91,6 @@ static uint32_t g_gpiopins[NUM_OF_GPIO] =
   PIN_CONF_UCC_RDY,         // gpio11
   PIN_CONF_UCC_FLT,         // gpio12
   PIN_CONF_UCC_EN,          // gpio13
-
-  // PIN_BCC_EN,               // gpio14
-  // PIN_BCC_INT,              // gpio15
-  // PIN_BCC_PCS               // gpio16
 };
 
 #if NUM_OF_GPIO > 0
